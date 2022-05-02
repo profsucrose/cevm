@@ -15,13 +15,16 @@ typedef enum {
 #define STACK_MAX 256
 
 typedef struct {
+    // Bytecode + program counter
     uint8_t *code;
     uint8_t *pc;
 
+    // Stack for manipulating data
     int32_t stack[STACK_MAX];
     int32_t *stack_top;
 
-    // No counter since iteration is linear
+    // Separate bytecode/constants for memory efficiency
+    // no counter needed since iterated through linearly (no JUMPs)
     int32_t *constants;
 } VM;
 

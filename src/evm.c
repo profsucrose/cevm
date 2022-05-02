@@ -14,7 +14,6 @@ void vm_init(VM *vm, uint8_t *code, int32_t *constants) {
 int32_t vm_eval(VM *vm) {
     #define CONSUME_BYTE() (*vm->pc++)
     #define CONSUME_CONSTANT() (*vm->constants++)
-    #define CONSTANT() (*vm->constants)
     #define POP() (*--vm->stack_top)
     #define PUSH(constant) ((*vm->stack_top++) = constant)
 
