@@ -10,10 +10,9 @@ typedef struct {
     uint64_t elements[4]; 
 } UInt256;
 
-#define ADD_CONSTANT(integer, op) { \
-    UInt256 *tmp = UInt256_from(op); \
-    UInt256_add(integer, tmp); \
-    free(tmp); \
+#define __PRINT(integer) { \
+    for (int i = 0; i < 4; i++) \
+        printf("%llu ", (integer)->elements[i]); \
 }
 
 extern UInt256 ZERO, ONE;
@@ -39,6 +38,7 @@ void UInt256_add(UInt256 *integer, const UInt256 *op);
 // Arithmetic
 void UInt256_sub(UInt256 *integer, const UInt256 *op);
 void UInt256_mult(UInt256 *integer, const UInt256 *op);
+void UInt256_mult_int(UInt256 *integer, uint64_t op);
 void UInt256_div(UInt256 *integer, const UInt256 *op);
 void UInt256_rem(UInt256 *integer, const UInt256 *op);
 

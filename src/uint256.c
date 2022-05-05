@@ -89,8 +89,20 @@ void UInt256_sub(UInt256 *integer, const UInt256 *op) {
 }
 
 void UInt256_mult(UInt256 *integer, const UInt256 *op) {
-    while (UInt256_gt(op, &ZERO))
+    UInt256 counter;
+    UInt256_copy(op, &counter);
+
+    while (UInt256_gt(&counter, &ZERO)) {
         UInt256_add(integer, op);
+        UInt256_sub(&counter, &ONE);
+    }
+}
+
+void UInt256_mult_int(UInt256 *integer, const uint64_t op) {
+    UInt256 big_int;
+    UInt256_init(&big_int, op);
+
+    UInt256_mult(integer, &big_int);
 }
 
 void UInt256_div(UInt256 *integer, const UInt256 *op) {
