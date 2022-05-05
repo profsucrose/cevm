@@ -166,7 +166,7 @@ typedef struct {
     uint8_t *pc;
 
     // Stack for manipulating data
-    uint8_t stack[STACK_MAX];
+    BigInt *stack[STACK_MAX];
     BigInt *stack_top;
 
     // Separate bytecode/constants for memory efficiency
@@ -175,6 +175,6 @@ typedef struct {
 } VM;
 
 void VM_init(VM *vm, uint8_t *code, int32_t *constants);
-int32_t VM_eval(VM *vm);
+BigInt *VM_eval(VM *vm);
 
 #endif

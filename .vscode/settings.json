@@ -3,6 +3,7 @@
         "__bit_reference": "c",
         "__split_buffer": "c",
         "string": "c",
-        "vector": "c"
+        "vector": "c",
+        "__node_handle": "c"
     }
 }

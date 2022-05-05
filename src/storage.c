@@ -9,28 +9,18 @@
 #define LOAD_FACTOR 0.5
 #define GROWTH_RATE 2
 
-#define BigInt_equals(a, b) (BigInt_compare(a, b) == 0)
-
-/* Jenkins' One-at-a-Time */
+/* djb2 (k=33) hashing algorithm */
 static size_t hash(BigInt *key) {
-    char *s = key->digits;
-    size_t hash = 0;
+    size_t hash = 5381;
 
-    for(; *s; ++s) {
-        hash += *s;
-        hash += (hash << 10);
-        hash ^= (hash >> 6);
-    }
-
-    hash += (hash << 3);
-    hash ^= (hash >> 11);
-    hash += (hash << 15);
+    for (int i = 0; i < key->num_digits; i++)
+        hash = ((hash << 5) + hash) + key->digits[i]; /* hash * 33 + c */
 
     return hash;
 }
 
 /* Quadratic probing */
-static int probe(size_t index, size_t probe_index) {
+static size_t probe(size_t index, size_t probe_index) {
     return index + probe_index * probe_index;
 }
 
@@ -60,7 +50,10 @@ void Storage_insert(Storage *storage, BigInt *key, BigInt *value) {
 
         if (BigInt_equals(key, entry_key)) {
             // TODO: Add better error handling
-            sprintf(stderr, "Key '%s' already exists in table", entry_key);
+            // sprintf(stderr, "Key '%s' already exists in table", entry_key);
+            printf("Key '");
+            BigInt_print(key);
+            printf("' already exists in Storage\n");
             exit(1);
         }
 
@@ -82,14 +75,20 @@ BigInt *Storage_get(Storage *storage, BigInt *key) {
     size_t index = hash(key) % storage->capacity;
 
     size_t probe_index = 0;
+
     while (storage->entries[index] != NULL && 
+            storage->entries[index]->key != NULL &&
             !BigInt_equals(key, storage->entries[index]->key)) {
         index = probe(index, ++probe_index) % storage->capacity;
     }
-
+    
     Entry *entry = storage->entries[index];
-    if (entry->key != key) {
-        sprintf(stderr, "Key '%s' does not exist in Storage", key->digits);
+
+    if (entry == NULL || !BigInt_equals(entry->key, key)) {
+        // sprintf(stderr, "Key '%s' does not exist in Storage", key->digits);
+        printf("Key '");
+        BigInt_print(key);
+        printf("' does not exist in Storage\n");
         exit(1);
     }
 

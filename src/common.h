@@ -8,4 +8,6 @@
 
 #include "bigint/bigint.h"
 
-#endif common_h
+#define BigInt_equals(a, b) (BigInt_compare(a, b) == 0)
+
+#endif

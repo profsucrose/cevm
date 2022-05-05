@@ -4,19 +4,19 @@ void VM_init(VM *vm, uint8_t *code, int32_t *constants) {
     vm->code = code;
     vm->pc = code;
 
-    vm->stack_top = (int32_t*)vm->stack;
+    vm->stack_top = (BigInt*)vm->stack;
 
     vm->constants = constants;
 }
 
-int32_t VM_eval(VM *vm) {
+BigInt *VM_eval(VM *vm) {
     #define CONSUME_BYTE() (*vm->pc++)
     #define CONSUME_CONSTANT() (*vm->constants++)
     #define POP() (*--vm->stack_top)
     #define PUSH(a) ((*vm->stack_top++) = a)
 
     uint8_t byte;
-    int32_t op1, op2;
+    BigInt *op1, op2;
     for (;;) {
         switch (byte = CONSUME_BYTE()) {
             case OP_STOP:

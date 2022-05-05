@@ -4,14 +4,14 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include "BigInt.h"
+#include "bigint.h"
 
 #define MAX(x, y) ((x) > (y) ? (x) : (y))
 
 BigInt* BigInt_construct(int value) {
 
     BigInt* new_big_int = malloc(sizeof(BigInt));
-    
+
     if(value < 0) {
         new_big_int->is_negative = 1;
         value *= -1;
