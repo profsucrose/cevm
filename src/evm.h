@@ -1,7 +1,7 @@
 #ifndef evm_h
 #define evm_h
 
-#include <stdint.h>
+#include "common.h"
 
 typedef enum {
     OP_STOP = 0,
@@ -16,7 +16,7 @@ typedef enum {
     OP_MULMOD,
     OP_EXP,
     OP_SIGNEXTEND,
-    __OP_INVALID0,
+    OP__INVALID0,
     OP_LT,
     OP_GT,
     OP_SLT,
@@ -31,9 +31,9 @@ typedef enum {
     OP_SHL,
     OP_SHR,
     OP_SAR,
-    __OP_INVALID1,
+    OP__INVALID1,
     OP_SHA3,
-    __OP_INVALID2,
+    OP__INVALID2,
     OP_ADDRESS,
     OP_BALANCE,
     OP_ORIGIN,
@@ -59,7 +59,7 @@ typedef enum {
     OP_CHAINID,
     OP_SELFBALANCE,
     OP_BASEFEE,
-    __OP_INVALID3,
+    OP__INVALID3,
     OP_POP,
     OP_MLOAD,
     OP_MSTORE,
@@ -72,7 +72,7 @@ typedef enum {
     OP_MSIZE,
     OP_GAS,
     OP_JUMPDEST,
-    OP___OP_INVALID5,
+    OP__INVALID5,
     OP_PUSH1,
     OP_PUSH2,
     OP_PUSH3,
@@ -142,22 +142,23 @@ typedef enum {
     OP_LOG2,
     OP_LOG3,
     OP_LOG4,
-    OP___OP_INVALID6,
+    OP__INVALID6,
     OP_CREATE,
     OP_CALL,
     OP_CALLCODE,
     OP_RETURN,
     OP_DELEGATECALL,
     OP_CREATE2,
-    OP___OP_INVALID7,
+    OP__INVALID7,
     OP_STATICCALL,
-    OP___OP_INVALID8,
+    OP__INVALID8,
     OP_REVERT,
-    OP___OP_INVALID9,
+    OP__INVALID9,
     OP_SELFDESTRUCT
 } OpCode;
 
-#define STACK_MAX 256
+// Stack has depth of 1024 items
+#define STACK_MAX 1024
 
 typedef struct {
     // Bytecode + program counter
@@ -165,15 +166,15 @@ typedef struct {
     uint8_t *pc;
 
     // Stack for manipulating data
-    int32_t stack[STACK_MAX];
-    int32_t *stack_top;
+    uint8_t stack[STACK_MAX];
+    BigInt *stack_top;
 
     // Separate bytecode/constants for memory efficiency
     // no counter needed since iterated through linearly (no JUMPs)
     int32_t *constants;
 } VM;
 
-void vm_init(VM *vm, uint8_t *code, int32_t *constants);
-int32_t vm_eval(VM *vm);
+void VM_init(VM *vm, uint8_t *code, int32_t *constants);
+int32_t VM_eval(VM *vm);
 
 #endif

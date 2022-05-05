@@ -1,8 +1,6 @@
 #include "evm.h"
-#include <stdlib.h>
-#include <stdio.h>
 
-void vm_init(VM *vm, uint8_t *code, int32_t *constants) {
+void VM_init(VM *vm, uint8_t *code, int32_t *constants) {
     vm->code = code;
     vm->pc = code;
 
@@ -11,11 +9,11 @@ void vm_init(VM *vm, uint8_t *code, int32_t *constants) {
     vm->constants = constants;
 }
 
-int32_t vm_eval(VM *vm) {
+int32_t VM_eval(VM *vm) {
     #define CONSUME_BYTE() (*vm->pc++)
     #define CONSUME_CONSTANT() (*vm->constants++)
     #define POP() (*--vm->stack_top)
-    #define PUSH(constant) ((*vm->stack_top++) = constant)
+    #define PUSH(a) ((*vm->stack_top++) = a)
 
     uint8_t byte;
     int32_t op1, op2;
