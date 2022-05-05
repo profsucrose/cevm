@@ -16,7 +16,7 @@ BigInt *VM_eval(VM *vm) {
     #define PUSH(a) ((*vm->stack_top++) = a)
 
     uint8_t byte;
-    BigInt *op1, op2;
+    // BigInt *op1, op2;
     for (;;) {
         switch (byte = CONSUME_BYTE()) {
             case OP_STOP:

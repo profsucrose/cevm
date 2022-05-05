@@ -1,9 +1,0 @@
-{
-    "files.associations": {
-        "__bit_reference": "c",
-        "__split_buffer": "c",
-        "string": "c",
-        "vector": "c",
-        "__node_handle": "c"
-    }
-}
