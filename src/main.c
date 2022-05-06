@@ -1,19 +1,37 @@
 #include "storage.h"
 #include "uint256.h"
 
-int main() {
-    #define MULTIPLIER 100000000
+// Assumes little endian
+void print_bits(size_t const size, void const * const ptr)
+{
+    unsigned char *b = (unsigned char*) ptr;
+    unsigned char byte;
+    int i, j;
+    
+    for (i = size-1; i >= 0; i--) {
+        for (j = 7; j >= 0; j--) {
+            byte = (b[i] >> j) & 1;
+            printf("%u", byte);
+        }
+    }
+    puts("");
+}
 
-    // UInt256 *x = UInt256_from(INT_MAX);
+int main() {
+    UInt256 *value = UInt256_from(ULLONG_MAX);
+    UInt256_shiftleft(value, 65);
+
+    // print_bits(sizeof(uint64_t), &limit);
+    __PRINT(value);
 
     // for (int i = 0; i < MULTIPLIER; i++)
     //     UInt256_add(x, UInt256_from(INT_MAX));
 
 
-    BigInt *y = BigInt_construct(INT_MAX);
+    // BigInt *y = BigInt_construct(INT_MAX);
 
-    for (int i = 0; i < MULTIPLIER; i++)
-        BigInt_add(y, BigInt_construct(INT_MAX));
+    // for (int i = 0; i < MULTIPLIER; i++)
+    //     BigInt_add(y, BigInt_construct(INT_MAX));
 
     // BigInt_print(y);
 

@@ -32,10 +32,12 @@ void UInt256_and(UInt256 *integer, const UInt256 *op);
 void UInt256_or(UInt256 *integer, const UInt256 *op);
 void UInt256_xor(UInt256 *integer, const UInt256 *op);
 void UInt256_not(UInt256 *integer);
-void UInt256_add_carry(UInt256 *integer, const UInt256 *op, bool *carry_out);
-void UInt256_add(UInt256 *integer, const UInt256 *op);
+void UInt256_shiftleft(UInt256 *integer, uint32_t op);
+void UInt256_shiftright(UInt256 *integer, uint32_t op);
 
 // Arithmetic
+void UInt256_add_carry(UInt256 *integer, const UInt256 *op, bool *carry_out);
+void UInt256_add(UInt256 *integer, const UInt256 *op);
 void UInt256_sub(UInt256 *integer, const UInt256 *op);
 void UInt256_mult(UInt256 *integer, const UInt256 *op);
 void UInt256_mult_int(UInt256 *integer, uint64_t op);
