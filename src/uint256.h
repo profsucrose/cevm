@@ -29,7 +29,7 @@ bool UInt256_equals(const UInt256 *a, const UInt256 *b);
 bool UInt256_gt(const UInt256 *a, const UInt256 *b);
 bool UInt256_ge(const UInt256 *a, const UInt256 *b);
 bool UInt256_lt(const UInt256 *a, const UInt256 *b);
-bool UInt256_ge(const UInt256 *a, const UInt256 *b);
+bool UInt256_le(const UInt256 *a, const UInt256 *b);
 
 // Bitwise ops
 void UInt256_and(UInt256 *integer, const UInt256 *op);
@@ -48,11 +48,11 @@ void UInt256_mult_int(UInt256 *integer, uint64_t op);
 void UInt256_div(UInt256 *integer, const UInt256 *op);
 void UInt256_rem(UInt256 *integer, const UInt256 *op);
 void UInt256_pow(UInt256 *integer, const UInt256 *exp);
+
+// Utils
 int UInt256_length(const UInt256 *integer);
 bool UInt256_get(const UInt256 *integer, uint32_t index);
 void UInt256_set(UInt256 *integer, uint32_t index, bool bit);
-
-// Utils
 void __print_bits(size_t const size, void const * const ptr);
 void UInt256_copy(const UInt256 *src, UInt256 *dest);
 void __UInt256_print_parts(const UInt256 *integer);
