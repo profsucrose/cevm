@@ -3,8 +3,8 @@
 #include "common.h"
 
 typedef struct {
-    BigInt *key;
-    BigInt *value;
+    UInt256 *key;
+    UInt256 *value;
 } Entry;
 
 typedef struct {
@@ -15,5 +15,5 @@ typedef struct {
 
 void Storage_init(Storage *storage);
 void Storage_resize(Storage *storage);
-void Storage_insert(Storage *storage, BigInt *key, BigInt *value);
-BigInt *Storage_get(Storage *storage, BigInt *key);
+void Storage_insert(Storage *storage, UInt256 *key, UInt256 *value);
+UInt256 *Storage_get(Storage *storage, UInt256 *key);

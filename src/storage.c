@@ -9,14 +9,16 @@
 #define LOAD_FACTOR 0.5
 #define GROWTH_RATE 2
 
-/* djb2 (k=33) hashing algorithm */
-static size_t hash(BigInt *key) {
-    size_t hash = 5381;
+static uint64_t cantor(uint64_t k1, uint64_t k2) {
+    return (k1 + k2) * (k1 + k2 + 1) / 2;
+}
 
-    for (int i = 0; i < key->num_digits; i++)
-        hash = ((hash << 5) + hash) + key->digits[i]; /* hash * 33 + c */
-
-    return hash;
+/* Use cantor pairing */
+static uint64_t hash(UInt256 *key) {
+    return cantor(
+        cantor(key->elements[0], key->elements[1]),
+        cantor(key->elements[2], key->elements[3])
+    );
 }
 
 /* Quadratic probing */
@@ -41,19 +43,20 @@ void Storage_resize(Storage *storage) {
     storage->entries = new_entries;
 }
 
-void Storage_insert(Storage *storage, BigInt *key, BigInt *value) {
-    size_t index = hash(key) % storage->capacity;
+void Storage_insert(Storage *storage, UInt256 *key, UInt256 *value) {
+    size_t index = (size_t)(hash(key) % (uint64_t)storage->capacity),
+            probe_index = 0;
+    UInt256 *entry_key;
 
-    size_t probe_index = 0;
+    printf("Hash: %llu; Index: %lu\n", hash(key), index);
+
     while (storage->entries[index] != NULL) {
-        BigInt *entry_key = storage->entries[index]->key;
+        entry_key = storage->entries[index]->key;
 
-        if (BigInt_equals(key, entry_key)) {
-            // TODO: Add better error handling
-            // sprintf(stderr, "Key '%s' already exists in table", entry_key);
-            printf("Key '");
-            BigInt_print(key);
-            printf("' already exists in Storage\n");
+        if (UInt256_equals(key, entry_key)) {
+            fprintf(stderr, "Key '");
+            UInt256_print_to(stderr, key);
+            fprintf(stderr, "' already exists in Storage\n");
             exit(1);
         }
 
@@ -62,8 +65,11 @@ void Storage_insert(Storage *storage, BigInt *key, BigInt *value) {
 
     Entry* new_entry = (Entry*)malloc(sizeof(Entry));
 
-    new_entry->key = key;
-    new_entry->value = value;
+    new_entry->key = UInt256_pfrom(0);
+    new_entry->value = UInt256_pfrom(0);
+
+    UInt256_copy(key, new_entry->key);
+    UInt256_copy(value, new_entry->value);
 
     storage->entries[index] = new_entry;
 
@@ -71,24 +77,25 @@ void Storage_insert(Storage *storage, BigInt *key, BigInt *value) {
         Storage_resize(storage);
 }
 
-BigInt *Storage_get(Storage *storage, BigInt *key) {
-    size_t index = hash(key) % storage->capacity;
+/* Return reference to value that matches given key */
+UInt256 *Storage_get(Storage *storage, UInt256 *key) {
+    size_t index = hash(key) % storage->capacity,
+            probe_index = 0;
 
-    size_t probe_index = 0;
+    printf("Index: %lu\n", index);
 
     while (storage->entries[index] != NULL && 
             storage->entries[index]->key != NULL &&
-            !BigInt_equals(key, storage->entries[index]->key)) {
+            !UInt256_equals(key, storage->entries[index]->key)) {
         index = probe(index, ++probe_index) % storage->capacity;
     }
     
     Entry *entry = storage->entries[index];
 
-    if (entry == NULL || !BigInt_equals(entry->key, key)) {
-        // sprintf(stderr, "Key '%s' does not exist in Storage", key->digits);
-        printf("Key '");
-        BigInt_print(key);
-        printf("' does not exist in Storage\n");
+    if (entry == NULL || !UInt256_equals(entry->key, key)) {
+        fprintf(stderr, "Key '");
+        UInt256_print_to(stderr, key);
+        fprintf(stderr, "' does not exist in Storage\n");
         exit(1);
     }
 

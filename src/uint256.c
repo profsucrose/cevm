@@ -299,7 +299,7 @@ void UInt256_print_bits(const UInt256 *value) {
     printf("\n");
 }
 
-void UInt256_print(const UInt256 *integer) {
+void UInt256_print_to(FILE *file, const UInt256 *integer) {
     UInt256 tmp = UInt256_from_u256(integer);
 
     char stack[76]; /* 2^(256-1) < 10^76 */
@@ -317,5 +317,9 @@ void UInt256_print(const UInt256 *integer) {
     }
 
     while (i-- > 0)
-        putchar(stack[i]);
+        fputc(stack[i], file);
+}
+
+void UInt256_print(const UInt256 *integer) {
+    UInt256_print_to(stderr, integer);
 }

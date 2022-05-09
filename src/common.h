@@ -8,6 +8,7 @@
 #include <math.h>
 #include <limits.h>
 
+#include "uint256.h"
 #include "bigint/bigint.h"
 
 #define BigInt_equals(a, b) (BigInt_compare(a, b) == 0)

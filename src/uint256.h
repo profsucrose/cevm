@@ -56,6 +56,7 @@ void UInt256_set(UInt256 *integer, uint32_t index, bool bit);
 void __print_bits(size_t const size, void const * const ptr);
 void UInt256_copy(const UInt256 *src, UInt256 *dest);
 void __UInt256_print_parts(const UInt256 *integer);
+void UInt256_print_to(FILE *file, const UInt256 *integer);
 void UInt256_print(const UInt256 *integer);
 void UInt256_print_bits(const UInt256 *value);
 

@@ -5,19 +5,17 @@
 #include "uint256.h"
 
 int main() {
-    #define X 1385175
-    #define Y 2
+    UInt256 *key = UInt256_pfrom(10);
+    UInt256 *value = UInt256_pfrom(13751);
 
-    UInt256 *x = UInt256_pfrom(X);
-    UInt256 *y = UInt256_pfrom(Y);
+    Storage storage;
+    Storage_init(&storage);
 
-    UInt256_print(x);
-    printf("\n");
-    __PRINT(y);
-    printf("\n");
+    printf("Inserting\n");
+    Storage_insert(&storage, key, value);
+    printf("Finished insert\n");
 
-    UInt256_pow(x, y);
+    UInt256 *result = Storage_get(&storage, UInt256_pfrom(69));
 
-    __PRINT(x);
-    printf("\n");
+    UInt256_print(result);
 }
