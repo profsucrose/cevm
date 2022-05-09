@@ -2,7 +2,8 @@
 #define evm_h
 
 #include "common.h"
-#include "map.h"
+#include "storage.h"
+#include "memory.h"
 
 // Stack has depth of 1024 items
 #define STACK_MAX 1024
@@ -18,8 +19,8 @@ typedef struct {
     BigInt stack[STACK_MAX];
     BigInt *stack_top;
 
-    IntMap storage;
-    VoidMap memory;
+    Storage storage;
+    Memory memory;
 } VM;
 
 void VM_init(VM *vm, uint8_t *code, int32_t *constants);
