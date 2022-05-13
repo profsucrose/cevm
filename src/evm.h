@@ -2,6 +2,28 @@
 #define evm_h
 
 #include "common.h"
+#include "map.h"
+
+// Stack has depth of 1024 items
+#define STACK_MAX 1024
+
+typedef struct {
+    // Bytecode + program counter
+    uint8_t *code;
+    uint8_t *pc;
+
+    uint64_t gas;
+
+    // Stack for manipulating data
+    BigInt stack[STACK_MAX];
+    BigInt *stack_top;
+
+    IntMap storage;
+    VoidMap memory;
+} VM;
+
+void VM_init(VM *vm, uint8_t *code, int32_t *constants);
+BigInt *VM_eval(VM *vm);
 
 typedef enum {
     OP_STOP = 0,
@@ -156,25 +178,5 @@ typedef enum {
     OP__INVALID9,
     OP_SELFDESTRUCT
 } OpCode;
-
-// Stack has depth of 1024 items
-#define STACK_MAX 1024
-
-typedef struct {
-    // Bytecode + program counter
-    uint8_t *code;
-    uint8_t *pc;
-
-    // Stack for manipulating data
-    BigInt *stack[STACK_MAX];
-    BigInt *stack_top;
-
-    // Separate bytecode/constants for memory efficiency
-    // no counter needed since iterated through linearly (no JUMPs)
-    int32_t *constants;
-} VM;
-
-void VM_init(VM *vm, uint8_t *code, int32_t *constants);
-BigInt *VM_eval(VM *vm);
 
 #endif

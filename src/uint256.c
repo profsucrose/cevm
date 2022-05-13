@@ -2,7 +2,6 @@
 
 UInt256 ZERO = (UInt256){ { 0, 0, 0, 0 } };
 UInt256 ONE = (UInt256){ { 0, 0, 0, 1 } };
-UInt256 TWO = (UInt256){ { 0, 0, 0, 2 } };
 
 bool UInt256_get(const UInt256 *integer, uint32_t index) {
     return (integer->elements[index / 64] >> (63 - (index % 64))) & 1;
@@ -247,6 +246,8 @@ void UInt256_rem(UInt256 *integer, const UInt256 *op) {
     UInt256_mult(&result, op);
     UInt256_sub(integer, &result);
 }
+
+static UInt256 TWO = (UInt256){ { 0, 0, 0, 2 } };
 
 void UInt256_pow(UInt256 *integer, const UInt256 *exp) {
     if (UInt256_equals(exp, &ZERO)) {
