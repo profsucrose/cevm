@@ -1,3 +1,6 @@
+#ifndef STORAGE_H
+#define STORAGE_H
+
 #include "vendor/bigint/bigint.h"
 
 #include "common.h"
@@ -17,3 +20,5 @@ void Storage_init(Storage *storage);
 void Storage_resize(Storage *storage);
 void Storage_insert(Storage *storage, UInt256 *key, UInt256 *value);
 UInt256 *Storage_get(Storage *storage, UInt256 *key);
+
+#endif

@@ -1,30 +1,9 @@
-#ifndef evm_h
-#define evm_h
+#ifndef EVM_H
+#define EVM_H
 
 #include "common.h"
 #include "storage.h"
 #include "memory.h"
-
-// Stack has depth of 1024 items
-#define STACK_MAX 1024
-
-typedef struct {
-    // Bytecode + program counter
-    uint8_t *code;
-    uint8_t *pc;
-
-    uint64_t gas;
-
-    // Stack for manipulating data
-    BigInt stack[STACK_MAX];
-    BigInt *stack_top;
-
-    Storage storage;
-    Memory memory;
-} VM;
-
-void VM_init(VM *vm, uint8_t *code, int32_t *constants);
-BigInt *VM_eval(VM *vm);
 
 typedef enum {
     OP_STOP = 0,
@@ -179,5 +158,26 @@ typedef enum {
     OP__INVALID9,
     OP_SELFDESTRUCT
 } OpCode;
+
+// Stack has depth of 1024 items
+#define STACK_MAX 1024
+
+typedef struct {
+    // Bytecode + program counter
+    OpCode *code;
+    OpCode *pc;
+
+    uint64_t gas;
+
+    // Stack for manipulating data
+    UInt256 stack[STACK_MAX];
+    UInt256 *stack_top;
+
+    Storage storage;
+    Memory memory;
+} VM;
+
+void VM_init(VM *vm, uint8_t *code, int32_t *constants);
+UInt256 *VM_eval(VM *vm);
 
 #endif

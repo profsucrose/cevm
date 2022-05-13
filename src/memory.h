@@ -1,5 +1,5 @@
-#ifndef memory_h
-#define memory_h
+#ifndef MEMORY_H
+#define MEMORY_H
 
 #include "common.h"
 

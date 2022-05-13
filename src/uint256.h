@@ -1,5 +1,5 @@
-#ifndef uint256_h
-#define uint256_h
+#ifndef UINT256_H
+#define UINT256_H
 
 #include "common.h"
 

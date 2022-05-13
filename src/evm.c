@@ -4,54 +4,144 @@ void VM_init(VM *vm, uint8_t *code, int32_t *constants) {
     vm->code = code;
     vm->pc = code;
 
-    vm->stack_top = (BigInt*)vm->stack;
+    vm->stack_top = (UInt256*)vm->stack;
 
-    vm->constants = constants;
+    Storage_init(&vm->storage);
+
+    Memory_init(&vm->memory);
 }
 
-BigInt *VM_eval(VM *vm) {
-    #define CONSUME_BYTE() (*vm->pc++)
-    #define CONSUME_CONSTANT() (*vm->constants++)
-    #define POP() (*--vm->stack_top)
-    #define PUSH(a) ((*vm->stack_top++) = a)
+/* Copy UInt256 */
+static UInt256 VM_pop(VM *vm) {
+    return *(--vm->stack_top);
+}
 
-    uint8_t byte;
-    // BigInt *op1, op2;
+static void VM_push(VM *vm, const UInt256 value) {
+    *vm->stack_top++ = value;
+}
+
+static OpCode VM_consume_byte(VM *vm) {
+    return *vm->pc++;
+}
+
+// -2^255 in 2's compliment is 1
+static UInt256 MINUS_UINT256_LIMIT = (UInt256){ { 0, 0, 0, 1 } };
+static UInt256 MINUS_ONE = (UInt256){ { ULLONG_MAX, ULLONG_MAX, ULLONG_MAX, ULLONG_MAX } };
+
+UInt256 *VM_eval(VM *vm) {
+    OpCode byte;
+    UInt256 op1, op2;
+
     for (;;) {
-        switch (byte = CONSUME_BYTE()) {
+        switch (byte = VM_consume_byte(vm)) {
             case OP_STOP:
                 break;
 
             case OP_ADD:
-                // TODO: Handle `ADD` here
+                op2 = VM_pop(vm); 
+                op1 = VM_pop(vm);
+
+                UInt256_add(&op1, &op2);
+
+                VM_push(vm, op1);
+
                 break;
 
             case OP_MUL:
-                // TODO: Handle `MUL` here
+                op2 = VM_pop(vm);                
+                op1 = VM_pop(vm);                
+
+                UInt256_mult(&op1, &op2);
+
+                VM_push(vm, op1);
+
                 break;
 
             case OP_SUB:
-                // TODO: Handle `SUB` here
+                op2 = VM_pop(vm);                
+                op1 = VM_pop(vm);                
+
+                UInt256_sub(&op1, &op2);
+
+                VM_push(vm, op1);
+
                 break;
 
             case OP_DIV:
-                // TODO: Handle `DIV` here
+                op2 = VM_pop(vm);
+                op1 = VM_pop(vm);
+
+                if (UInt256_equals(&op2, &ZERO)) op1 = ZERO;
+                else UInt256_div(&op1, &op2);
+
+                VM_push(vm, op1);
+
                 break;
 
             case OP_SDIV:
-                // TODO: Handle `SDIV` here
+                op2 = VM_pop(vm);
+                op1 = VM_pop(vm);
+
+                if (UInt256_equals(&op2, &ZERO)) op1 = ZERO;
+                else if (UInt256_equals(&op1, &MINUS_UINT256_LIMIT) &&
+                        UInt256_equals(&op2, &MINUS_ONE))
+                    op1 = MINUS_UINT256_LIMIT;
+                else {
+                    // Get absolute value of division and store to op1
+                    UInt256_div(&op1, &op2);
+
+                    bool op1_is_negative = (op1.elements[0] >> 63) & 1;
+                    bool op2_is_negative = (op1.elements[0] >> 63) & 1;
+
+                    if (op1_is_negative + op2_is_negative == 1) {
+                        // If one op is negative and other is positive,
+                        // then negate division
+                        UInt256_not(&op1);
+                        UInt256_add(&op1, &ONE);
+                    }
+                }
+
+                VM_push(vm, op1);
+
                 break;
 
             case OP_MOD:
-                // TODO: Handle `MOD` here
+                op2 = VM_pop(vm);
+                op1 = VM_pop(vm);
+                
+                if (UInt256_equals(&op2, &ZERO)) op1 = ZERO;
+                else UInt256_rem(&op1, &op2);
+
+                VM_push(vm, op1);
+
                 break;
 
             case OP_SMOD:
-                // TODO: Handle `SMOD` here
+                op2 = VM_pop(vm);
+                op1 = VM_pop(vm);
+                
+                if (UInt256_equals(&op2, &ZERO)) op1 = ZERO;
+                else {
+                    UInt256_rem(&op1, &op2);
+
+                    bool op1_negative = op1.elements[0] >> 63 & 1;
+
+                    if (op1_negative) {
+                        // If one op is negative and other is positive,
+                        // then negate modulo
+                        UInt256_not(&op1);
+                        UInt256_add(&op1, &ONE);
+                    }
+                }
+
+                VM_push(vm, op1);
+
                 break;
 
             case OP_ADDMOD:
-                // TODO: Handle `ADDMOD` here
+                
+
+
                 break;
 
             case OP_MULMOD:
