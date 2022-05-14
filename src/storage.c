@@ -43,7 +43,7 @@ void Storage_resize(Storage *storage) {
     storage->entries = new_entries;
 }
 
-void Storage_insert(Storage *storage, UInt256 *key, UInt256 *value) {
+void Storage_insert(Storage *storage, const UInt256 *key, const UInt256 *value) {
     size_t index = (size_t)(hash(key) % (uint64_t)storage->capacity),
             probe_index = 0;
     UInt256 *entry_key;
@@ -78,7 +78,7 @@ void Storage_insert(Storage *storage, UInt256 *key, UInt256 *value) {
 }
 
 /* Return reference to value that matches given key */
-UInt256 *Storage_get(Storage *storage, UInt256 *key) {
+UInt256 *Storage_get(Storage *storage, const UInt256 *key) {
     size_t index = hash(key) % storage->capacity,
             probe_index = 0;
 
@@ -92,12 +92,10 @@ UInt256 *Storage_get(Storage *storage, UInt256 *key) {
     
     Entry *entry = storage->entries[index];
 
-    if (entry == NULL || !UInt256_equals(entry->key, key)) {
-        fprintf(stderr, "Key '");
-        UInt256_print_to(stderr, key);
-        fprintf(stderr, "' does not exist in Storage\n");
-        exit(1);
-    }
+    // Return 0 if key does not exist
+    if (entry == NULL || !UInt256_equals(entry->key, key))
+        return &ZERO;
 
+    // Else return retrieved value
     return entry->value;
 }

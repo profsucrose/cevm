@@ -10,7 +10,7 @@ typedef struct {
 } Memory;
 
 void Memory_init(Memory *memory);
-void Memory_insert(Memory *memory, uint64_t index, uint8_t *buffer, size_t length);
-uint8_t *Memory_get(Memory *memory, uint64_t index);
+void Memory_insert(Memory *memory, uint64_t offset, uint8_t *buffer, size_t length);
+uint8_t *Memory_offset(Memory *memory, uint64_t offset);
 
 #endif

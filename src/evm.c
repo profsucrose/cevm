@@ -2,7 +2,7 @@
 
 void VM_init(VM *vm, uint8_t *code, int32_t *constants) {
     vm->code = code;
-    vm->pc = code;
+    vm->pc = 0;
 
     vm->stack_top = (UInt256*)vm->stack;
 
@@ -25,8 +25,8 @@ static void push(VM *vm, const UInt256 value) {
     *vm->stack_top++ = value;
 }
 
-static OpCode consume_opcode(VM *vm) {
-    return *vm->pc++;
+static uint8_t consume_byte(VM *vm) {
+    return vm->code[vm->pc++];
 }
 
 // -2^255 in 2's compliment is 1
@@ -34,7 +34,7 @@ static UInt256 MINUS_UINT256_LIMIT = (UInt256){ { 0, 0, 0, 1 } };
 static UInt256 MINUS_ONE = (UInt256){ { ULLONG_MAX, ULLONG_MAX, ULLONG_MAX, ULLONG_MAX } };
 
 UInt256 *VM_eval(VM *vm) {
-    OpCode byte;
+    OpCode opcode;
 
     UInt256 ops[17];
 
@@ -45,14 +45,14 @@ UInt256 *VM_eval(VM *vm) {
     }
 
     for (;;) {
-        switch (byte = consume_opcode(vm)) {
+        switch (opcode = consume_opcode(vm)) {
             case OP_STOP: {
                 break;
             }
 
             case OP_ADD: {
-                UInt256 op2 = pop(vm); 
-                UInt256 op1 = pop(vm);
+                UInt256 op2 = pop(vm),
+                    op1 = pop(vm);
 
                 UInt256_add(&op1, &op2);
 
@@ -62,8 +62,8 @@ UInt256 *VM_eval(VM *vm) {
             }
 
             case OP_MUL: {
-                UInt256 op2 = pop(vm);                
-                UInt256 op1 = pop(vm);                
+                UInt256 op2 = pop(vm),
+                    op1 = pop(vm); 
 
                 UInt256_mult(&op1, &op2);
 
@@ -73,8 +73,8 @@ UInt256 *VM_eval(VM *vm) {
             }
 
             case OP_SUB: {
-                UInt256 op2 = pop(vm);                
-                UInt256 op1 = pop(vm);                
+                UInt256 op2 = pop(vm),                
+                    op1 = pop(vm);                
 
                 UInt256_sub(&op1, &op2);
 
@@ -84,8 +84,8 @@ UInt256 *VM_eval(VM *vm) {
             }
 
             case OP_DIV: {
-                UInt256 op2 = pop(vm);
-                UInt256 op1 = pop(vm);
+                UInt256 op2 = pop(vm),
+                    op1 = pop(vm);
 
                 if (UInt256_equals(&op2, &ZERO)) op1 = ZERO;
                 else UInt256_div(&op1, &op2);
@@ -96,8 +96,8 @@ UInt256 *VM_eval(VM *vm) {
             }
 
             case OP_SDIV: {
-                UInt256 op2 = pop(vm);
-                UInt256 op1 = pop(vm);
+                UInt256 op2 = pop(vm),
+                    op1 = pop(vm);
 
                 if (UInt256_equals(&op2, &ZERO)) op1 = ZERO;
                 else if (UInt256_equals(&op1, &MINUS_UINT256_LIMIT) &&
@@ -107,14 +107,13 @@ UInt256 *VM_eval(VM *vm) {
                     // Get absolute value of division and store to op1
                     UInt256_div(&op1, &op2);
 
-                    bool op1_is_negative = (op1.elements[0] >> 63) & 1;
-                    bool op2_is_negative = (op1.elements[0] >> 63) & 1;
+                    bool op1_is_negative = UInt256_get(&op1, 0);
+                    bool op2_is_negative = UInt256_get(&op2, 0);
 
                     if (op1_is_negative + op2_is_negative == 1) {
                         // If one op is negative and other is positive,
                         // then negate division
-                        UInt256_not(&op1);
-                        UInt256_add(&op1, &ONE);
+                        UInt256_compliment(&op1);
                     }
                 }
 
@@ -124,8 +123,8 @@ UInt256 *VM_eval(VM *vm) {
             }
 
             case OP_MOD: {
-                UInt256 op2 = pop(vm);
-                UInt256 op1 = pop(vm);
+                UInt256 op2 = pop(vm),
+                    op1 = pop(vm);
                 
                 if (UInt256_equals(&op2, &ZERO)) op1 = ZERO;
                 else UInt256_rem(&op1, &op2);
@@ -136,20 +135,19 @@ UInt256 *VM_eval(VM *vm) {
             }
 
             case OP_SMOD: {
-                UInt256 op2 = pop(vm);
-                UInt256 op1 = pop(vm);
+                UInt256 op2 = pop(vm),
+                    op1 = pop(vm);
                 
                 if (UInt256_equals(&op2, &ZERO)) op1 = ZERO;
                 else {
                     UInt256_rem(&op1, &op2);
 
-                    bool op1_negative = op1.elements[0] >> 63 & 1;
+                    bool op1_negative = UInt256_get(&op1, 0);
 
                     if (op1_negative) {
                         // If one op is negative and other is positive,
                         // then negate modulo
-                        UInt256_not(&op1);
-                        UInt256_add(&op1, &ONE);
+                        UInt256_compliment(&op1);
                     }
                 }
 
@@ -159,9 +157,9 @@ UInt256 *VM_eval(VM *vm) {
             }
 
             case OP_ADDMOD: {
-                UInt256 op3 = pop(vm);
-                UInt256 op2 = pop(vm);
-                UInt256 op1 = pop(vm);
+                UInt256 op3 = pop(vm),
+                    op2 = pop(vm),
+                    op1 = pop(vm);
 
                 if (UInt256_equals(&op3, &ZERO)) op1 = ZERO;
                 else {
@@ -174,685 +172,578 @@ UInt256 *VM_eval(VM *vm) {
                 break;
             }
 
-            HANDLE(OP_MULMOD, 3, {
+            case OP_MULMOD: {
+                UInt256 op3 = pop(vm),
+                    op2 = pop(vm), 
+                    op1 = pop(vm);
+
                 if (UInt256_equals(&ops[2], &ZERO)) ops[0] = ZERO;
                 else {
                     UInt256_mult(&ops[0], &ops[1]);
                     UInt256_rem(&ops[0], &ops[2]);
                 }
                 push(vm, ops[0]);
-            })
+            }
 
-            HANDLE(OP_EXP, 2, {
-                UInt256_pow(&ops[0], &ops[1]);
-                push(vm, ops[0]);
-            })
+            case OP_EXP: {
+                UInt256 op2 = pop(vm),
+                    op1 = pop(vm);
+
+                UInt256_pow(&op1, &op2);
+                push(vm, op1);
+
+                break;
+            }
             
-            HANDLE(OP_SIGNEXTEND, 2, {
-                int t = 256 - 8 * (UInt256_get(&ops[0], 0) + 1);
-                for (int i = 0; i < 255; i++) {
-                    if (i >= t) UInt256_set(&ops[0], i, UInt256_get(&ops[1], t));
-                    else UInt256_set(&ops[0], i, UInt256_get(&ops[1], i));
-                }
-                push(vm, ops[0]);
-            })
+            case OP_SIGNEXTEND: {
+                UInt256 op2 = pop(vm),
+                    op1 = pop(vm);
+
+                int t = 256 - 8 * (UInt256_get(&op1, 0) + 1);
+
+                for (int i = 0; i < 255; i++)
+                    UInt256_set(&op1, i, UInt256_get(&op2, i >= t ? t : i));
+
+                push(vm, op1);
+
+                break;
+            }
 
             case OP_LT: {
-                // TODO: Handle `LT` here
+                UInt256 b = pop(vm), a = pop(vm);
+                push(vm, UInt256_lt(&a, &b) ? ONE : ZERO);
                 break;
             }
 
             case OP_GT: {
-                // TODO: Handle `GT` here
+                UInt256 b = pop(vm), a = pop(vm);
+                push(vm, UInt256_gt(&a, &b) ? ONE : ZERO);
                 break;
             }
 
             case OP_SLT: {
-                // TODO: Handle `SLT` here
+                // Assert ops are in 2's compliment
+                UInt256 b = pop(vm), a = pop(vm);
+
+                UInt256 a_abs = a; UInt256_abs(&a_abs);
+                UInt256 b_abs = b; UInt256_abs(&b_abs);
+
+                bool abs_lt = UInt256_lt(&a_abs, &b_abs);
+
+                bool a_negative = UInt256_get(&a, 0);
+                bool b_negative = UInt256_get(&a, 0);
+
+                // TODO: Shorten logic
+                bool lt = (!a_negative && !b_negative && abs_lt) ||    // if a > 0 and b > 0, then true if |a| < |b|
+                    (a_negative && !b_negative) ||                     // if a < 0 and b > 0, then true
+                    (a_negative && b_negative && !abs_lt);             // if a < 0 and b < 0, then true if |a| > |b|
+
+                push(vm, lt ? ONE : ZERO);
+
                 break;
             }
 
             case OP_SGT: {
-                // TODO: Handle `SGT` here
+                // Assert ops are in 2's compliment
+                UInt256 b = pop(vm), a = pop(vm);
+
+                UInt256 a_abs = a; UInt256_abs(&a_abs);
+                UInt256 b_abs = b; UInt256_abs(&b_abs);
+
+                bool abs_gt = UInt256_gt(&a_abs, &b_abs);
+
+                bool a_negative = UInt256_get(&a, 0);
+                bool b_negative = UInt256_get(&a, 0);
+
+                bool gt = (!a_negative && !b_negative && abs_gt) ||    // if a > 0 and b > 0, then |a| > |b|
+                    (!a_negative && b_negative) ||                     // if a > 0 and b < 0, then true
+                    (a_negative && b_negative && !abs_gt);             // if a < 0 and b < 0, then |a| < |b|
+
+                push(vm, gt ? ONE : ZERO);
+
                 break;
             }
 
             case OP_EQ: {
-                // TODO: Handle `EQ` here
+                UInt256 b = pop(vm), a = pop(vm);
+
+                push(vm, UInt256_equals(&a, &b) ? ONE : ZERO);
+
                 break;
             }
 
             case OP_ISZERO: {
-                // TODO: Handle `ISZERO` here
+                UInt256 a = pop(vm);
+                push(vm, UInt256_equals(&a, &ZERO) ? ONE : ZERO);
                 break;
             }
 
             case OP_AND: {
-                // TODO: Handle `AND` here
+                UInt256 b = pop(vm), a = pop(vm);
+                UInt256_and(&a, &b);
+                push(vm, a);
                 break;
             }
 
             case OP_OR: {
-                // TODO: Handle `OR` here
+                UInt256 b = pop(vm), a = pop(vm);
+                UInt256_or(&a, &b);
+                push(vm, a);
                 break;
             }
 
             case OP_XOR: {
-                // TODO: Handle `XOR` here
+                UInt256 b = pop(vm), a = pop(vm);
+                UInt256_xor(&a, &b);
+                push(vm, a);
                 break;
             }
 
             case OP_NOT: {
-                // TODO: Handle `NOT` here
+                UInt256 a = pop(vm);
+                UInt256_not(&a);
+                push(vm, a);
                 break;
             }
 
             case OP_BYTE: {
-                // TODO: Handle `BYTE` here
+                UInt256 x = pop(vm);
+                int i = pop(vm).elements[0];
+
+                // Index starting from most significant byte moving backwards
+                // if index is in range
+                UInt256 y = i > 31 ? ZERO : UInt256_from((uint64_t)*(((uint8_t*)&x.elements[3]) - i));
+
+                push(vm, y);
                 break;
             }
 
             case OP_SHL: {
-                // TODO: Handle `SHL` here
+                UInt256 value = pop(vm);
+                uint32_t shift = (uint32_t)pop(vm).elements[3];
+                UInt256_shiftleft(&value, shift);
+                push(vm, value);
                 break;
             }
 
             case OP_SHR: {
-                // TODO: Handle `SHR` here
+                UInt256 value = pop(vm);
+                uint32_t shift = (uint32_t)pop(vm).elements[3];
+                UInt256_shiftright(&value, shift);
+                push(vm, value);
                 break;
             }
 
             case OP_SAR: {
-                // TODO: Handle `SAR` here
+                UInt256 value = pop(vm);
+                uint32_t shift = (uint32_t)pop(vm).elements[3];
+
+                UInt256_shiftright(&value, shift);
+
+                /* If negative by 2's compliment, then
+                shifted bits become 1 instead of 0 */
+                if (UInt256_get(&value, 0)) {
+                    value.elements[0] |= (ULLONG_MAX << 64 - shift);
+                    value.elements[1] |= (ULLONG_MAX << 64 - (shift - 64));
+                    value.elements[2] |= (ULLONG_MAX << 64 - (shift - 128));
+                    value.elements[3] |= (ULLONG_MAX << 64 - (shift - 192));
+                }
+
+                push(vm, value);
+
                 break;
             }
 
             case OP_SHA3: {
-                // TODO: Handle `SHA3` here
+                uint64_t size = pop(vm).elements[3], offset = pop(vm).elements[3];
+
+                SHA3_CTX ctx;
+                Keccak_init(&ctx);
+                Keccak_update(&ctx, Memory_offset(&vm->memory, offset), size);
+
+                uint64_t buffer[4];
+                Keccak_final(&ctx, (uint8_t*)&buffer);
+
+                /* TODO: buffer may have to be reversed?
+                (either byte or bit wise) */
+                UInt256 hash = (UInt256){ buffer };
+
+                push(vm, hash);
+                
                 break;
             }
 
             case OP_ADDRESS: {
-                // TODO: Handle `ADDRESS` here
+                error("Unhandled opcode ADDRESS\n");
                 break;
             }
 
             case OP_BALANCE: {
-                // TODO: Handle `BALANCE` here
+                error("Unhandled opcode BALANCE\n");
                 break;
             }
 
             case OP_ORIGIN: {
-                // TODO: Handle `ORIGIN` here
+                error("Unhandled opcode ORIGIN\n");
                 break;
             }
 
             case OP_CALLER: {
-                // TODO: Handle `CALLER` here
+                error("Unhandled opcode CALLER\n");
                 break;
             }
 
             case OP_CALLVALUE: {
-                // TODO: Handle `CALLVALUE` here
+                error("Unhandled opcode CALLVALUE\n");
                 break;
             }
 
             case OP_CALLDATALOAD: {
-                // TODO: Handle `CALLDATALOAD` here
+                error("Unhandled opcode CALLDATALOAD\n");
                 break;
             }
 
             case OP_CALLDATASIZE: {
-                // TODO: Handle `CALLDATASIZE` here
+                error("Unhandled opcode CALLDATASIZE\n");
                 break;
             }
 
             case OP_CALLDATACOPY: {
-                // TODO: Handle `CALLDATACOPY` here
+                error("Unhandled opcode CALLDATACOPY\n");
                 break;
             }
 
             case OP_CODESIZE: {
-                // TODO: Handle `CODESIZE` here
+                error("Unhandled opcode CODESIZE\n");
                 break;
             }
 
             case OP_CODECOPY: {
-                // TODO: Handle `CODECOPY` here
+                error("Unhandled opcode CODECOPY\n");
                 break;
             }
 
             case OP_GASPRICE: {
-                // TODO: Handle `GASPRICE` here
+                error("Unhandled opcode GASPRICE\n");
                 break;
             }
 
             case OP_EXTCODESIZE: {
-                // TODO: Handle `EXTCODESIZE` here
+                error("Unhandled opcode EXTCODESIZE\n");
                 break;
             }
 
             case OP_EXTCODECOPY: {
-                // TODO: Handle `EXTCODECOPY` here
+                error("Unhandled opcode EXTCODECOPY\n");
                 break;
             }
 
             case OP_RETURNDATASIZE: {
-                // TODO: Handle `RETURNDATASIZE` here
+                error("Unhandled opcode RETURNDATASIZE\n");
                 break;
             }
 
             case OP_RETURNDATACOPY: {
-                // TODO: Handle `RETURNDATACOPY` here
+                error("Unhandled opcode RETURNDATACOPY\n");
                 break;
             }
 
             case OP_EXTCODEHASH: {
-                // TODO: Handle `EXTCODEHASH` here
+                error("Unhandled opcode EXTCODEHASH\n");
                 break;
             }
 
             case OP_BLOCKHASH: {
-                // TODO: Handle `BLOCKHASH` here
+                error("Unhandled opcode BLOCKHASH\n");
                 break;
             }
 
             case OP_COINBASE: {
-                // TODO: Handle `COINBASE` here
+                error("Unhandled opcode COINBASE\n");
                 break;
             }
 
             case OP_TIMESTAMP: {
-                // TODO: Handle `TIMESTAMP` here
+                error("Unhandled opcode TIMESTAMP\n");
                 break;
             }
 
             case OP_NUMBER: {
-                // TODO: Handle `NUMBER` here
+                error("Unhandled opcode NUMBER\n");
                 break;
             }
 
             case OP_DIFFICULTY: {
-                // TODO: Handle `DIFFICULTY` here
+                error("Unhandled opcode DIFFICULTY\n");
                 break;
             }
 
             case OP_GASLIMIT: {
-                // TODO: Handle `GASLIMIT` here
+                error("Unhandled opcode GASLIMIT\n");
                 break;
             }
 
             case OP_CHAINID: {
-                // TODO: Handle `CHAINID` here
+                error("Unhandled opcode CHAINID\n");
                 break;
             }
 
             case OP_SELFBALANCE: {
-                // TODO: Handle `SELFBALANCE` here
+                error("Unhandled opcode SELFBALANCE\n");
                 break;
             }
 
             case OP_BASEFEE: {
-                // TODO: Handle `BASEFEE` here
+                error("Unhandled opcode BASEFEE\n");
                 break;
             }
 
             case OP_POP: {
-                // TODO: Handle `POP` here
+                pop(vm); // Throw away value
                 break;
             }
 
+            /* BM: Byte array operations are little-endian */
+
             case OP_MLOAD: {
-                // TODO: Handle `MLOAD` here
+                uint64_t offset = pop(vm).elements[3];
+                uint64_t *mem = (uint64_t*)Memory_offset(&vm->memory, offset);
+                UInt256 value = (UInt256){ { mem[3], mem[2], mem[1], mem[0] } };
+                push(vm, value);
                 break;
             }
 
             case OP_MSTORE: {
-                // TODO: Handle `MSTORE` here
+                UInt256 value = pop(vm);
+                uint64_t offset = pop(vm).elements[3];
+                uint64_t *mem = (uint64_t*)Memory_offset(&vm->memory, offset);
+                mem[0] = value.elements[3];
+                mem[1] = value.elements[2];
+                mem[2] = value.elements[1];
+                mem[3] = value.elements[0];
                 break;
             }
 
             case OP_MSTORE8: {
-                // TODO: Handle `MSTORE8` here
+                UInt256 value = pop(vm);
+                uint64_t offset = pop(vm).elements[3];
+                uint64_t *mem = (uint64_t*)Memory_offset(&vm->memory, offset);
+                mem[0] = value.elements[3];
                 break;
             }
 
             case OP_SLOAD: {
-                // TODO: Handle `SLOAD` here
+                UInt256 key = pop(vm), value;
+                UInt256_copy(Storage_get(&vm->storage, &key), &value);
+                push(vm, value);
                 break;
             }
 
             case OP_SSTORE: {
-                // TODO: Handle `SSTORE` here
+                UInt256 value = pop(vm), key = pop(vm);
+                Storage_insert(&vm->storage, &key, &value);
                 break;
             }
 
             case OP_JUMP: {
-                // TODO: Handle `JUMP` here
+                UInt256 counter = pop(vm);
+                size_t pc = (size_t)counter.elements[3];
+                if (vm->code[pc] == OP_JUMPDEST) vm->pc = (size_t)counter.elements[3];
+                else error("Expected JUMP instruction to jump to JUMPDEST, got %llu\n", pc);
                 break;
             }
 
             case OP_JUMPI: {
-                // TODO: Handle `JUMPI` here
+                UInt256 b = pop(vm), counter = pop(vm);
+                if (!UInt256_equals(&b, &ZERO)) vm->pc = counter.elements[3];
                 break;
             }
 
             case OP_PC: {
-                // TODO: Handle `PC` here
+                push(vm, UInt256_from(vm->pc - 1));
                 break;
             }
 
             case OP_MSIZE: {
-                // TODO: Handle `MSIZE` here
+                // TODO: Not sure about starting memory capacity/expansion?
+                push(vm, UInt256_from(vm->memory.capacity));
                 break;
             }
 
             case OP_GAS: {
-                // TODO: Handle `GAS` here
+                error("Unhandled opcode GAS\n");
                 break;
             }
 
             case OP_JUMPDEST: {
-                // TODO: Handle `JUMPDEST` here
+                // Do nothing
                 break;
             }
 
-            case OP_PUSH1: {
-                // TODO: Handle `PUSH1` here
-                break;
-            }
-
-            case OP_PUSH2: {
-                // TODO: Handle `PUSH2` here
-                break;
-            }
-
-            case OP_PUSH3: {
-                // TODO: Handle `PUSH3` here
-                break;
-            }
-
-            case OP_PUSH4: {
-                // TODO: Handle `PUSH4` here
-                break;
-            }
-
-            case OP_PUSH5: {
-                // TODO: Handle `PUSH5` here
-                break;
-            }
-
-            case OP_PUSH6: {
-                // TODO: Handle `PUSH6` here
-                break;
-            }
-
-            case OP_PUSH7: {
-                // TODO: Handle `PUSH7` here
-                break;
-            }
-
-            case OP_PUSH8: {
-                // TODO: Handle `PUSH8` here
-                break;
-            }
-
-            case OP_PUSH9: {
-                // TODO: Handle `PUSH9` here
-                break;
-            }
-
-            case OP_PUSH10: {
-                // TODO: Handle `PUSH10` here
-                break;
-            }
-
-            case OP_PUSH11: {
-                // TODO: Handle `PUSH11` here
-                break;
-            }
-
-            case OP_PUSH12: {
-                // TODO: Handle `PUSH12` here
-                break;
-            }
-
-            case OP_PUSH13: {
-                // TODO: Handle `PUSH13` here
-                break;
-            }
-
-            case OP_PUSH14: {
-                // TODO: Handle `PUSH14` here
-                break;
-            }
-
-            case OP_PUSH15: {
-                // TODO: Handle `PUSH15` here
-                break;
-            }
-
-            case OP_PUSH16: {
-                // TODO: Handle `PUSH16` here
-                break;
-            }
-
-            case OP_PUSH17: {
-                // TODO: Handle `PUSH17` here
-                break;
-            }
-
-            case OP_PUSH18: {
-                // TODO: Handle `PUSH18` here
-                break;
-            }
-
-            case OP_PUSH19: {
-                // TODO: Handle `PUSH19` here
-                break;
-            }
-
-            case OP_PUSH20: {
-                // TODO: Handle `PUSH20` here
-                break;
-            }
-
-            case OP_PUSH21: {
-                // TODO: Handle `PUSH21` here
-                break;
-            }
-
-            case OP_PUSH22: {
-                // TODO: Handle `PUSH22` here
-                break;
-            }
-
-            case OP_PUSH23: {
-                // TODO: Handle `PUSH23` here
-                break;
-            }
-
-            case OP_PUSH24: {
-                // TODO: Handle `PUSH24` here
-                break;
-            }
-
-            case OP_PUSH25: {
-                // TODO: Handle `PUSH25` here
-                break;
-            }
-
-            case OP_PUSH26: {
-                // TODO: Handle `PUSH26` here
-                break;
-            }
-
-            case OP_PUSH27: {
-                // TODO: Handle `PUSH27` here
-                break;
-            }
-
-            case OP_PUSH28: {
-                // TODO: Handle `PUSH28` here
-                break;
-            }
-
-            case OP_PUSH29: {
-                // TODO: Handle `PUSH29` here
-                break;
-            }
-
-            case OP_PUSH30: {
-                // TODO: Handle `PUSH30` here
-                break;
-            }
-
-            case OP_PUSH31: {
-                // TODO: Handle `PUSH31` here
-                break;
-            }
-
+            case OP_PUSH1:
+            case OP_PUSH2:
+            case OP_PUSH3:
+            case OP_PUSH4:
+            case OP_PUSH5:
+            case OP_PUSH6:
+            case OP_PUSH7:
+            case OP_PUSH8:
+            case OP_PUSH9:
+            case OP_PUSH10:
+            case OP_PUSH11:
+            case OP_PUSH12:
+            case OP_PUSH13:
+            case OP_PUSH14:
+            case OP_PUSH15:
+            case OP_PUSH16:
+            case OP_PUSH17:
+            case OP_PUSH18:
+            case OP_PUSH19:
+            case OP_PUSH20:
+            case OP_PUSH21:
+            case OP_PUSH22:
+            case OP_PUSH23:
+            case OP_PUSH24:
+            case OP_PUSH25:
+            case OP_PUSH26:
+            case OP_PUSH27:
+            case OP_PUSH28:
+            case OP_PUSH29:
+            case OP_PUSH30:
+            case OP_PUSH31:
             case OP_PUSH32: {
                 // TODO: Handle `PUSH32` here
+                uint64_t length = opcode - OP_PUSH1 + 1;
+
+                UInt256 value = ZERO;
+                uint8_t *buffer = &value.elements[0] + 7; // Last byte in smallest word
+
+                for (int i = 0; i < length; i++)
+                    *(buffer - i) = consume_byte(vm);
+                
+                push(vm, value);
+                
                 break;
             }
 
-            case OP_DUP1: {
-                // TODO: Handle `DUP1` here
-                break;
-            }
-
-            case OP_DUP2: {
-                // TODO: Handle `DUP2` here
-                break;
-            }
-
-            case OP_DUP3: {
-                // TODO: Handle `DUP3` here
-                break;
-            }
-
-            case OP_DUP4: {
-                // TODO: Handle `DUP4` here
-                break;
-            }
-
-            case OP_DUP5: {
-                // TODO: Handle `DUP5` here
-                break;
-            }
-
-            case OP_DUP6: {
-                // TODO: Handle `DUP6` here
-                break;
-            }
-
-            case OP_DUP7: {
-                // TODO: Handle `DUP7` here
-                break;
-            }
-
-            case OP_DUP8: {
-                // TODO: Handle `DUP8` here
-                break;
-            }
-
-            case OP_DUP9: {
-                // TODO: Handle `DUP9` here
-                break;
-            }
-
-            case OP_DUP10: {
-                // TODO: Handle `DUP10` here
-                break;
-            }
-
-            case OP_DUP11: {
-                // TODO: Handle `DUP11` here
-                break;
-            }
-
-            case OP_DUP12: {
-                // TODO: Handle `DUP12` here
-                break;
-            }
-
-            case OP_DUP13: {
-                // TODO: Handle `DUP13` here
-                break;
-            }
-
-            case OP_DUP14: {
-                // TODO: Handle `DUP14` here
-                break;
-            }
-
-            case OP_DUP15: {
-                // TODO: Handle `DUP15` here
-                break;
-            }
-
+            case OP_DUP1:
+            case OP_DUP2:
+            case OP_DUP3:
+            case OP_DUP4:
+            case OP_DUP5:
+            case OP_DUP6:
+            case OP_DUP7:
+            case OP_DUP8:
+            case OP_DUP9:
+            case OP_DUP10:
+            case OP_DUP11:
+            case OP_DUP12:
+            case OP_DUP13:
+            case OP_DUP14:
+            case OP_DUP15:
             case OP_DUP16: {
-                // TODO: Handle `DUP16` here
+                uint64_t stack_offset = opcode - OP_DUP1;
+                for (int i = stack_offset + 1; i > 0; i--)
+                    vm->stack[i] = vm->stack[i - 1];
+                vm->stack[0] = vm->stack[stack_offset + 1];
                 break;
             }
 
-            case OP_SWAP1: {
-                // TODO: Handle `SWAP1` here
-                break;
-            }
-
-            case OP_SWAP2: {
-                // TODO: Handle `SWAP2` here
-                break;
-            }
-
-            case OP_SWAP3: {
-                // TODO: Handle `SWAP3` here
-                break;
-            }
-
-            case OP_SWAP4: {
-                // TODO: Handle `SWAP4` here
-                break;
-            }
-
-            case OP_SWAP5: {
-                // TODO: Handle `SWAP5` here
-                break;
-            }
-
-            case OP_SWAP6: {
-                // TODO: Handle `SWAP6` here
-                break;
-            }
-
-            case OP_SWAP7: {
-                // TODO: Handle `SWAP7` here
-                break;
-            }
-
-            case OP_SWAP8: {
-                // TODO: Handle `SWAP8` here
-                break;
-            }
-
-            case OP_SWAP9: {
-                // TODO: Handle `SWAP9` here
-                break;
-            }
-
-            case OP_SWAP10: {
-                // TODO: Handle `SWAP10` here
-                break;
-            }
-
-            case OP_SWAP11: {
-                // TODO: Handle `SWAP11` here
-                break;
-            }
-
-            case OP_SWAP12: {
-                // TODO: Handle `SWAP12` here
-                break;
-            }
-
-            case OP_SWAP13: {
-                // TODO: Handle `SWAP13` here
-                break;
-            }
-
-            case OP_SWAP14: {
-                // TODO: Handle `SWAP14` here
-                break;
-            }
-
-            case OP_SWAP15: {
-                // TODO: Handle `SWAP15` here
-                break;
-            }
-
+            case OP_SWAP1:
+            case OP_SWAP2:
+            case OP_SWAP3:
+            case OP_SWAP4:
+            case OP_SWAP5:
+            case OP_SWAP6:
+            case OP_SWAP7:
+            case OP_SWAP8:
+            case OP_SWAP9:
+            case OP_SWAP10:
+            case OP_SWAP11:
+            case OP_SWAP12:
+            case OP_SWAP13:
+            case OP_SWAP14:
+            case OP_SWAP15:
             case OP_SWAP16: {
-                // TODO: Handle `SWAP16` here
+                uint64_t swap_index = opcode - OP_SWAP1 + 1;
+                UInt256 tmp = vm->stack[0];
+                vm->stack[0] = vm->stack[swap_index];
+                vm->stack[swap_index] = tmp;
                 break;
             }
 
-            case OP_LOG0: {
-                // TODO: Handle `LOG0` here
-                break;
-            }
-
-            case OP_LOG1: {
-                // TODO: Handle `LOG1` here
-                break;
-            }
-
-            case OP_LOG2: {
-                // TODO: Handle `LOG2` here
-                break;
-            }
-
-            case OP_LOG3: {
-                // TODO: Handle `LOG3` here
-                break;
-            }
-
+            case OP_LOG0:
+            case OP_LOG1:
+            case OP_LOG2:
+            case OP_LOG3:
             case OP_LOG4: {
-                // TODO: Handle `LOG4` here
+                error("Unhandled opcode LOG%d\n", (int)(opcode - OP_LOG0));
                 break;
             }
 
             case OP_CREATE: {
-                // TODO: Handle `CREATE` here
+                error("Unhandled opcode CREATE\n");
                 break;
             }
 
             case OP_CALL: {
-                // TODO: Handle `CALL` here
+                UInt256 ret_size = pop(vm), ret_offset = pop(vm), args_size = pop(vm),
+                    args_offset = pop(vm), value = pop(vm), address = pop(vm), gas = pop(vm);
+
+                // TODO: Handle hardcoded CALL addresses for Playdate utils
+                error("Unhandled opcode CALL\n");
+
                 break;
             }
 
             case OP_CALLCODE: {
-                // TODO: Handle `CALLCODE` here
+                UInt256 ret_size = pop(vm), ret_offset = pop(vm), args_size = pop(vm),
+                    args_offset = pop(vm), value = pop(vm), address = pop(vm), gas = pop(vm);
+
+                // TODO: Should maybe handle this?
+                error("Unhandled opcode CALLCODE\n");
+
                 break;
             }
 
             case OP_RETURN: {
-                // TODO: Handle `RETURN` here
+                // TODO: Should also maybe handle this?
+                error("Unhandled opcode RETURN\n");
                 break;
             }
 
             case OP_DELEGATECALL: {
-                // TODO: Handle `DELEGATECALL` here
+                // TODO: Should also maybe handle this?
+                error("Unhandled opcode DELEGATECALL\n");
                 break;
             }
 
             case OP_CREATE2: {
-                // TODO: Handle `CREATE2` here
+                error("Unhandled opcode CREATE2\n");
                 break;
             }
 
             case OP_STATICCALL: {
-                // TODO: Handle `STATICCALL` here
+                // TODO: Maybe handle this as well for Playdate calls?
+                error("Unhandled opcode STATICCALL\n");
                 break;
             }
 
             case OP_REVERT: {
-                // TODO: Handle `REVERT` here
+                error("Unhandled opcode REVERT\n");
                 break;
             }
 
             case OP_SELFDESTRUCT: {
-                // TODO: Handle `SELFDESTRUCT` here
+                error("Unhandled opcode SELFDESTRUCT\n");
                 break;
             }
 
-            default:
-                fprintf(stderr, "Unexpected opcode %d\n", byte);
-                exit(1);
+            default: {
+                error("Unexpected opcode %d\n", opcode);
+            }
         }
     }
 
-    fprintf(stderr, "Expected OP_RETURN in bytecode\n");
-    exit(1);
+    error("Expected RETURN in bytecode\n");
 }

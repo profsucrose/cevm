@@ -76,14 +76,14 @@ static uint64_t get_round_constant(uint8_t round) {
 
 
 /* Initializing a sha3 context for given number of output bits */
-void keccak_init(SHA3_CTX *ctx) {
+void Keccak_init(SHA3_CTX *ctx) {
     /* NB: The Keccak capacity parameter = bits * 2 */
 
     memset(ctx, 0, sizeof(SHA3_CTX));
 }
 
 /* Keccak theta() transformation */
-static void keccak_theta(uint64_t *A) {
+static void Keccak_theta(uint64_t *A) {
     uint64_t C[5], D[5];
 
     for (uint8_t i = 0; i < 5; i++) {
@@ -103,7 +103,7 @@ static void keccak_theta(uint64_t *A) {
 
 
 /* Keccak pi() transformation */
-static void keccak_pi(uint64_t *A) {
+static void Keccak_pi(uint64_t *A) {
     uint64_t A1 = A[1];
     //for (uint8_t i = 1; i < sizeof(pi_transform); i++) {
     for (uint8_t i = 1; i < 24; i++) {
@@ -120,7 +120,7 @@ Global variables use 743 bytes (36%) of dynamic memory, leaving 1305 bytes for l
 
 */
 /* Keccak chi() transformation */
-static void keccak_chi(uint64_t *A) {
+static void Keccak_chi(uint64_t *A) {
     for (uint8_t i = 0; i < 25; i += 5) {
         uint64_t A0 = A[0 + i], A1 = A[1 + i];
         A[0 + i] ^= ~A1 & A[2 + i];
@@ -135,7 +135,7 @@ static void keccak_chi(uint64_t *A) {
 static void sha3_permutation(uint64_t *state) {
     //for (uint8_t round = 0; round < sizeof(round_constant_info); round++) {
     for (uint8_t round = 0; round < 24; round++) {
-        keccak_theta(state);
+        Keccak_theta(state);
 
         /* apply Keccak rho() transformation */
         for (uint8_t i = 1; i < 25; i++) {
@@ -143,8 +143,8 @@ static void sha3_permutation(uint64_t *state) {
             state[i] = ROTL64(state[i], getConstant(TYPE_RHO_TRANSFORM, i - 1));
         }
 
-        keccak_pi(state);
-        keccak_chi(state);
+        Keccak_pi(state);
+        Keccak_chi(state);
 
         /* apply iota(state, round) */
         *state ^= get_round_constant(round);
@@ -178,7 +178,7 @@ static void sha3_process_block(uint64_t hash[25], const uint64_t *block) {
  * @param msg message chunk
  * @param size length of the message chunk
  */
-void keccak_update(SHA3_CTX *ctx, const unsigned char *msg, uint16_t size)
+void Keccak_update(SHA3_CTX *ctx, const unsigned char *msg, uint16_t size)
 {
     uint16_t idx = (uint16_t)ctx->rest;
 
@@ -223,7 +223,7 @@ void keccak_update(SHA3_CTX *ctx, const unsigned char *msg, uint16_t size)
 * @param ctx the algorithm context containing current hashing state
 * @param result calculated hash in binary form
 */
-void keccak_final(SHA3_CTX *ctx, unsigned char* result)
+void Keccak_final(SHA3_CTX *ctx, unsigned char* result)
 {
     uint16_t digest_length = 100 - BLOCK_SIZE / 2;
 

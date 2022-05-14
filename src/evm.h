@@ -164,8 +164,8 @@ typedef enum {
 
 typedef struct {
     // Bytecode + program counter
-    OpCode *code;
-    OpCode *pc;
+    uint8_t *code;
+    size_t pc;
 
     uint64_t gas;
 

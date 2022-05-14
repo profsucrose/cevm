@@ -44,10 +44,11 @@ void UInt256_add_carry(UInt256 *integer, const UInt256 *op, bool *carry_out);
 void UInt256_add(UInt256 *integer, const UInt256 *op);
 void UInt256_sub(UInt256 *integer, const UInt256 *op);
 void UInt256_mult(UInt256 *integer, const UInt256 *op);
-void UInt256_mult_int(UInt256 *integer, uint64_t op);
 void UInt256_div(UInt256 *integer, const UInt256 *op);
 void UInt256_rem(UInt256 *integer, const UInt256 *op);
 void UInt256_pow(UInt256 *integer, const UInt256 *exp);
+void UInt256_compliment(UInt256 *integer);
+void UInt256_abs(Uint256 *integer);
 
 // Utils
 int UInt256_length(const UInt256 *integer);

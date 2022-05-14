@@ -235,11 +235,6 @@ void UInt256_mult(UInt256 *integer, const UInt256 *op) {
     UInt256_copy(&result, integer);
 }
 
-void UInt256_mult_int(UInt256 *integer, const uint64_t op) {
-    UInt256 big_int = UInt256_from(op);
-    UInt256_mult(integer, &big_int);
-}
-
 void UInt256_rem(UInt256 *integer, const UInt256 *op) {
     UInt256 result = UInt256_from_u256(integer);
     UInt256_div(&result, op);
@@ -272,6 +267,18 @@ void UInt256_pow(UInt256 *integer, const UInt256 *exp) {
     if (is_odd) UInt256_mult(&result, integer);
 
     UInt256_copy(&result, integer);
+}
+
+void UInt256_compliment(UInt256 *integer) {
+    UInt256_not(integer);
+    UInt256_add(integer, &ONE);
+}
+
+void UInt256_abs(UInt256 *integer) {
+    if (UInt256_get(integer, 0)) {
+        UInt256_not(integer);
+        Uint256_add(integer, &ONE);
+    }
 }
 
 void UInt256_copy(const UInt256 *src, UInt256 *dest) {

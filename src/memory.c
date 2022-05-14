@@ -20,15 +20,15 @@ static void resize(Memory *memory) {
         memory->array[i] = 0;
 }
 
-void Memory_insert(Memory *memory, uint64_t index, uint8_t *buffer, size_t length) {
+void Memory_insert(Memory *memory, uint64_t offset, uint8_t *buffer, size_t length) {
     // TODO: Maybe return if resized?
-    if (index + length > memory->length)
+    if (offset + length > memory->length)
         resize(memory);
 
     for (size_t i = 0; i < length; i++)
-        memory->array[index + i] = buffer[i];
+        memory->array[offset + i] = buffer[i];
 }
 
-uint8_t *Memory_get(Memory *memory, uint64_t index) {
-    return memory->array + index;
+uint8_t *Memory_offset(Memory *memory, uint64_t offset) {
+    return memory->array + offset;
 }
