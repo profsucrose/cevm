@@ -51,160 +51,133 @@ UInt256 *VM_eval(VM *vm) {
             }
 
             case OP_ADD: {
-                UInt256 op2 = pop(vm),
-                    op1 = pop(vm);
-
-                UInt256_add(&op1, &op2);
-
-                push(vm, op1);
-
+                UInt256 b = pop(vm), a = pop(vm);
+                UInt256_add(&a, &b);
+                push(vm, a);
                 break;
             }
 
             case OP_MUL: {
-                UInt256 op2 = pop(vm),
-                    op1 = pop(vm); 
-
-                UInt256_mult(&op1, &op2);
-
-                push(vm, op1);
-
+                UInt256 b = pop(vm), a = pop(vm);
+                UInt256_mult(&a, &b);
+                push(vm, a);
                 break;
             }
 
             case OP_SUB: {
-                UInt256 op2 = pop(vm),                
-                    op1 = pop(vm);                
-
-                UInt256_sub(&op1, &op2);
-
-                push(vm, op1);
-
+                UInt256 b = pop(vm), a = pop(vm);
+                UInt256_sub(&a, &b);
+                push(vm, a);
                 break;
             }
 
             case OP_DIV: {
-                UInt256 op2 = pop(vm),
-                    op1 = pop(vm);
-
-                if (UInt256_equals(&op2, &ZERO)) op1 = ZERO;
-                else UInt256_div(&op1, &op2);
-
-                push(vm, op1);
-
+                UInt256 b = pop(vm), a = pop(vm);
+                if (UInt256_equals(&a, &ZERO)) a = ZERO;
+                else UInt256_div(&a, &b);
+                push(vm, a);
                 break;
             }
 
             case OP_SDIV: {
-                UInt256 op2 = pop(vm),
-                    op1 = pop(vm);
+                UInt256 b = pop(vm), a = pop(vm);
 
-                if (UInt256_equals(&op2, &ZERO)) op1 = ZERO;
-                else if (UInt256_equals(&op1, &MINUS_UINT256_LIMIT) &&
-                        UInt256_equals(&op2, &MINUS_ONE))
-                    op1 = MINUS_UINT256_LIMIT;
+                if (UInt256_equals(&b, &ZERO)) a = ZERO;
+                else if (UInt256_equals(&a, &MINUS_UINT256_LIMIT) &&
+                        UInt256_equals(&b, &MINUS_ONE))
+                    a = MINUS_UINT256_LIMIT;
                 else {
                     // Get absolute value of division and store to op1
-                    UInt256_div(&op1, &op2);
+                    UInt256_div(&a, &b);
 
-                    bool op1_is_negative = UInt256_get(&op1, 0);
-                    bool op2_is_negative = UInt256_get(&op2, 0);
+                    bool a_negative = UInt256_get(&a, 0);
+                    bool b_negative = UInt256_get(&b, 0);
 
-                    if (op1_is_negative + op2_is_negative == 1) {
+                    if (a_negative + b_negative == 1) {
                         // If one op is negative and other is positive,
                         // then negate division
-                        UInt256_compliment(&op1);
+                        UInt256_compliment(&a);
                     }
                 }
 
-                push(vm, op1);
+                push(vm, a);
 
                 break;
             }
 
             case OP_MOD: {
-                UInt256 op2 = pop(vm),
-                    op1 = pop(vm);
+                UInt256 b = pop(vm), a = pop(vm);
                 
-                if (UInt256_equals(&op2, &ZERO)) op1 = ZERO;
-                else UInt256_rem(&op1, &op2);
+                if (UInt256_equals(&b, &ZERO)) a = ZERO;
+                else UInt256_rem(&a, &b);
 
-                push(vm, op1);
+                push(vm, a);
 
                 break;
             }
 
             case OP_SMOD: {
-                UInt256 op2 = pop(vm),
-                    op1 = pop(vm);
+                UInt256 b = pop(vm), a = pop(vm);
                 
-                if (UInt256_equals(&op2, &ZERO)) op1 = ZERO;
+                if (UInt256_equals(&b, &ZERO)) a = ZERO;
                 else {
-                    UInt256_rem(&op1, &op2);
+                    UInt256_rem(&a, &b);
 
-                    bool op1_negative = UInt256_get(&op1, 0);
+                    bool a_negative = UInt256_get(&a, 0);
 
-                    if (op1_negative) {
-                        // If one op is negative and other is positive,
-                        // then negate modulo
-                        UInt256_compliment(&op1);
-                    }
+                    // If a is negative, then negate modulo
+                    if (a_negative) UInt256_compliment(&a);
                 }
 
-                push(vm, op1);
+                push(vm, a);
 
                 break;
             }
 
             case OP_ADDMOD: {
-                UInt256 op3 = pop(vm),
-                    op2 = pop(vm),
-                    op1 = pop(vm);
+                UInt256 a = pop(vm), b = pop(vm), N = pop(vm);
 
-                if (UInt256_equals(&op3, &ZERO)) op1 = ZERO;
+                if (UInt256_equals(&N, &ZERO)) a = ZERO;
                 else {
-                    UInt256_add(&op1, &op2);
-                    UInt256_rem(&op1, &op3);
+                    UInt256_add(&a, &b);
+                    UInt256_rem(&a, &N);
                 }
 
-                push(vm, op1);
+                push(vm, a);
 
                 break;
             }
 
             case OP_MULMOD: {
-                UInt256 op3 = pop(vm),
-                    op2 = pop(vm), 
-                    op1 = pop(vm);
+                UInt256 N = pop(vm), b = pop(vm), a = pop(vm);
 
-                if (UInt256_equals(&ops[2], &ZERO)) ops[0] = ZERO;
+                if (UInt256_equals(&N, &ZERO)) a = ZERO;
                 else {
-                    UInt256_mult(&ops[0], &ops[1]);
-                    UInt256_rem(&ops[0], &ops[2]);
+                    UInt256_mult(&a, &b);
+                    UInt256_rem(&a, &N);
                 }
-                push(vm, ops[0]);
+
+                push(vm, a);
             }
 
             case OP_EXP: {
-                UInt256 op2 = pop(vm),
-                    op1 = pop(vm);
+                UInt256 exponent = pop(vm), a = pop(vm);
 
-                UInt256_pow(&op1, &op2);
-                push(vm, op1);
+                UInt256_pow(&a, &exponent);
+                push(vm, a);
 
                 break;
             }
             
             case OP_SIGNEXTEND: {
-                UInt256 op2 = pop(vm),
-                    op1 = pop(vm);
+                UInt256 x = pop(vm), b = pop(vm);
 
-                int t = 256 - 8 * (UInt256_get(&op1, 0) + 1);
+                int t = 256 - 8 * (UInt256_get(&b, 0) + 1);
 
                 for (int i = 0; i < 255; i++)
-                    UInt256_set(&op1, i, UInt256_get(&op2, i >= t ? t : i));
+                    UInt256_set(&b, i, UInt256_get(&x, i >= t ? t : i));
 
-                push(vm, op1);
+                push(vm, b);
 
                 break;
             }
