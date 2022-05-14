@@ -175,8 +175,8 @@ int UInt256_length(const UInt256 *integer) {
     uint32_t *ptr = (uint32_t*)&integer->elements[0], lz, word;
     ptr--; // Move back 1 for left-most uint32
 
-    for (int i = 7; i >= 0; i--) {
-        word = *(ptr + i);
+    for (int i = 0; i <= 7; i++) {
+        word = ptr[i];
         if (word != 0) {
             lz = __builtin_clz(word);
             return (32 - lz) + 32 * (7 - i);
@@ -195,7 +195,7 @@ void UInt256_div(UInt256 *integer, const UInt256 *op) {
     /* Binary long division (TODO: Karatsuba) */
 
     UInt256 result = UInt256_from(0), 
-            dividend = UInt256_from(0);
+        dividend = UInt256_from(0);
 
     // Start at MSB of `integer` and move right
     for (int i = 256 - UInt256_length(integer); i <= 255; i++) {
@@ -314,6 +314,7 @@ void UInt256_print_to(FILE *file, const UInt256 *integer) {
     int i = 0;
 
     UInt256 rem_ten;
+
     while (UInt256_gt(&tmp, &ZERO)) {
         UInt256_copy(&tmp, &rem_ten);
 
