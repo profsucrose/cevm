@@ -15,6 +15,6 @@
 #define BigInt_equals(a, b) (BigInt_compare(a, b) == 0)
 
 // TODO: Better error handling
-#define error(args...) sprintf(stderr, args); exit(1);
+#define error(args...) fprintf(stderr, args); exit(1);
 
 #endif

@@ -16,11 +16,6 @@ static UInt256 pop(VM *vm) {
     return *(--vm->stack_top);
 }
 
-static UInt256 pop_to_buffer(VM *vm, UInt256 *buffer, uint32_t args) {
-    for (int i = args - 1; i >= 0; i--)
-        buffer[i] = pop(vm);
-}
-
 static void push(VM *vm, const UInt256 value) {
     *vm->stack_top++ = value;
 }
@@ -36,16 +31,8 @@ static UInt256 MINUS_ONE = (UInt256){ { ULLONG_MAX, ULLONG_MAX, ULLONG_MAX, ULLO
 UInt256 *VM_eval(VM *vm) {
     OpCode opcode;
 
-    UInt256 ops[17];
-
-    #define HANDLE(code, args, block) case code: { \
-        pop_to_buffer(vm, &ops, args); \
-        block \
-        break; \
-    }
-
     for (;;) {
-        switch (opcode = consume_opcode(vm)) {
+        switch (opcode = consume_byte(vm)) {
             case OP_STOP: {
                 break;
             }
@@ -316,10 +303,10 @@ UInt256 *VM_eval(VM *vm) {
                 /* If negative by 2's compliment, then
                 shifted bits become 1 instead of 0 */
                 if (UInt256_get(&value, 0)) {
-                    value.elements[0] |= (ULLONG_MAX << 64 - shift);
-                    value.elements[1] |= (ULLONG_MAX << 64 - (shift - 64));
-                    value.elements[2] |= (ULLONG_MAX << 64 - (shift - 128));
-                    value.elements[3] |= (ULLONG_MAX << 64 - (shift - 192));
+                    value.elements[0] |= (ULLONG_MAX << (64 - shift));
+                    value.elements[1] |= (ULLONG_MAX << (64 - (shift - 64)));
+                    value.elements[2] |= (ULLONG_MAX << (64 - (shift - 128)));
+                    value.elements[3] |= (ULLONG_MAX << (64 - (shift - 192)));
                 }
 
                 push(vm, value);
@@ -339,7 +326,7 @@ UInt256 *VM_eval(VM *vm) {
 
                 /* TODO: buffer may have to be reversed?
                 (either byte or bit wise) */
-                UInt256 hash = (UInt256){ buffer };
+                UInt256 hash = (UInt256){ { buffer[0], buffer[1], buffer[2], buffer[3] } };
 
                 push(vm, hash);
                 
@@ -489,19 +476,20 @@ UInt256 *VM_eval(VM *vm) {
             case OP_MSTORE: {
                 UInt256 value = pop(vm);
                 uint64_t offset = pop(vm).elements[3];
-                uint64_t *mem = (uint64_t*)Memory_offset(&vm->memory, offset);
-                mem[0] = value.elements[3];
-                mem[1] = value.elements[2];
-                mem[2] = value.elements[1];
-                mem[3] = value.elements[0];
+                
+                // Reverse and store in buffer for
+                // writing little-endian to memory
+                uint64_t buffer[] = { value.elements[3], value.elements[2], value.elements[1], value.elements[0] };
+
+                Memory_insert(&vm->memory, offset, (uint8_t*)&buffer[0], 32);
+
                 break;
             }
 
             case OP_MSTORE8: {
                 UInt256 value = pop(vm);
                 uint64_t offset = pop(vm).elements[3];
-                uint64_t *mem = (uint64_t*)Memory_offset(&vm->memory, offset);
-                mem[0] = value.elements[3];
+                Memory_insert(&vm->memory, offset, (uint8_t*)&value.elements[3], 8);
                 break;
             }
 
@@ -522,7 +510,7 @@ UInt256 *VM_eval(VM *vm) {
                 UInt256 counter = pop(vm);
                 size_t pc = (size_t)counter.elements[3];
                 if (vm->code[pc] == OP_JUMPDEST) vm->pc = (size_t)counter.elements[3];
-                else error("Expected JUMP instruction to jump to JUMPDEST, got %llu\n", pc);
+                else error("Expected JUMP instruction to jump to JUMPDEST, got %zu\n", pc);
                 break;
             }
 
@@ -585,11 +573,10 @@ UInt256 *VM_eval(VM *vm) {
             case OP_PUSH30:
             case OP_PUSH31:
             case OP_PUSH32: {
-                // TODO: Handle `PUSH32` here
                 uint64_t length = opcode - OP_PUSH1 + 1;
 
                 UInt256 value = ZERO;
-                uint8_t *buffer = &value.elements[0] + 7; // Last byte in smallest word
+                uint8_t *buffer = (uint8_t*)&value.elements[0] + 7; // Last byte in smallest word
 
                 for (int i = 0; i < length; i++)
                     *(buffer - i) = consume_byte(vm);
@@ -660,8 +647,8 @@ UInt256 *VM_eval(VM *vm) {
             }
 
             case OP_CALL: {
-                UInt256 ret_size = pop(vm), ret_offset = pop(vm), args_size = pop(vm),
-                    args_offset = pop(vm), value = pop(vm), address = pop(vm), gas = pop(vm);
+                // UInt256 ret_size = pop(vm), ret_offset = pop(vm), args_size = pop(vm),
+                //     args_offset = pop(vm), value = pop(vm), address = pop(vm), gas = pop(vm);
 
                 // TODO: Handle hardcoded CALL addresses for Playdate utils
                 error("Unhandled opcode CALL\n");
@@ -670,8 +657,8 @@ UInt256 *VM_eval(VM *vm) {
             }
 
             case OP_CALLCODE: {
-                UInt256 ret_size = pop(vm), ret_offset = pop(vm), args_size = pop(vm),
-                    args_offset = pop(vm), value = pop(vm), address = pop(vm), gas = pop(vm);
+                // UInt256 ret_size = pop(vm), ret_offset = pop(vm), args_size = pop(vm),
+                //     args_offset = pop(vm), value = pop(vm), address = pop(vm), gas = pop(vm);
 
                 // TODO: Should maybe handle this?
                 error("Unhandled opcode CALLCODE\n");

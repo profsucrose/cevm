@@ -14,7 +14,7 @@ static uint64_t cantor(uint64_t k1, uint64_t k2) {
 }
 
 /* Use cantor pairing */
-static uint64_t hash(UInt256 *key) {
+static uint64_t hash(const UInt256 *key) {
     return cantor(
         cantor(key->elements[0], key->elements[1]),
         cantor(key->elements[2], key->elements[3])

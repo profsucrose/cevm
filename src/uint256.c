@@ -277,7 +277,7 @@ void UInt256_compliment(UInt256 *integer) {
 void UInt256_abs(UInt256 *integer) {
     if (UInt256_get(integer, 0)) {
         UInt256_not(integer);
-        Uint256_add(integer, &ONE);
+        UInt256_add(integer, &ONE);
     }
 }
 

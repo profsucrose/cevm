@@ -167,9 +167,6 @@ typedef struct {
     uint8_t *code;
     size_t pc;
 
-    uint64_t gas;
-
-    // Stack for manipulating data
     UInt256 stack[STACK_MAX];
     UInt256 *stack_top;
 

@@ -48,7 +48,7 @@ void UInt256_div(UInt256 *integer, const UInt256 *op);
 void UInt256_rem(UInt256 *integer, const UInt256 *op);
 void UInt256_pow(UInt256 *integer, const UInt256 *exp);
 void UInt256_compliment(UInt256 *integer);
-void UInt256_abs(Uint256 *integer);
+void UInt256_abs(UInt256 *integer);
 
 // Utils
 int UInt256_length(const UInt256 *integer);
