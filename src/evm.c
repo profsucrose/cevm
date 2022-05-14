@@ -12,20 +12,20 @@ void VM_init(VM *vm, uint8_t *code, int32_t *constants) {
 }
 
 /* Copy UInt256 */
-static UInt256 VM_pop(VM *vm) {
+static UInt256 pop(VM *vm) {
     return *(--vm->stack_top);
 }
 
-static UInt256 VM_pop_to_buffer(VM *vm, UInt256 *buffer, uint32_t args) {
+static UInt256 pop_to_buffer(VM *vm, UInt256 *buffer, uint32_t args) {
     for (int i = args - 1; i >= 0; i--)
-        buffer[i] = *(--vm->stack_top);
+        buffer[i] = pop(vm);
 }
 
-static void VM_push(VM *vm, const UInt256 value) {
+static void push(VM *vm, const UInt256 value) {
     *vm->stack_top++ = value;
 }
 
-static OpCode VM_consume_byte(VM *vm) {
+static OpCode consume_opcode(VM *vm) {
     return *vm->pc++;
 }
 
@@ -39,65 +39,65 @@ UInt256 *VM_eval(VM *vm) {
     UInt256 ops[17];
 
     #define HANDLE(code, args, block) case code: { \
-        VM_pop_to_buffer(vm, &ops, args); \
+        pop_to_buffer(vm, &ops, args); \
         block \
         break; \
     }
 
     for (;;) {
-        switch (byte = VM_consume_byte(vm)) {
+        switch (byte = consume_opcode(vm)) {
             case OP_STOP: {
                 break;
             }
 
             case OP_ADD: {
-                UInt256 op2 = VM_pop(vm); 
-                UInt256 op1 = VM_pop(vm);
+                UInt256 op2 = pop(vm); 
+                UInt256 op1 = pop(vm);
 
                 UInt256_add(&op1, &op2);
 
-                VM_push(vm, op1);
+                push(vm, op1);
 
                 break;
             }
 
             case OP_MUL: {
-                UInt256 op2 = VM_pop(vm);                
-                UInt256 op1 = VM_pop(vm);                
+                UInt256 op2 = pop(vm);                
+                UInt256 op1 = pop(vm);                
 
                 UInt256_mult(&op1, &op2);
 
-                VM_push(vm, op1);
+                push(vm, op1);
 
                 break;
             }
 
             case OP_SUB: {
-                UInt256 op2 = VM_pop(vm);                
-                UInt256 op1 = VM_pop(vm);                
+                UInt256 op2 = pop(vm);                
+                UInt256 op1 = pop(vm);                
 
                 UInt256_sub(&op1, &op2);
 
-                VM_push(vm, op1);
+                push(vm, op1);
 
                 break;
             }
 
             case OP_DIV: {
-                UInt256 op2 = VM_pop(vm);
-                UInt256 op1 = VM_pop(vm);
+                UInt256 op2 = pop(vm);
+                UInt256 op1 = pop(vm);
 
                 if (UInt256_equals(&op2, &ZERO)) op1 = ZERO;
                 else UInt256_div(&op1, &op2);
 
-                VM_push(vm, op1);
+                push(vm, op1);
 
                 break;
             }
 
             case OP_SDIV: {
-                UInt256 op2 = VM_pop(vm);
-                UInt256 op1 = VM_pop(vm);
+                UInt256 op2 = pop(vm);
+                UInt256 op1 = pop(vm);
 
                 if (UInt256_equals(&op2, &ZERO)) op1 = ZERO;
                 else if (UInt256_equals(&op1, &MINUS_UINT256_LIMIT) &&
@@ -118,25 +118,26 @@ UInt256 *VM_eval(VM *vm) {
                     }
                 }
 
-                VM_push(vm, op1);
+                push(vm, op1);
+
                 break;
             }
 
             case OP_MOD: {
-                UInt256 op2 = VM_pop(vm);
-                UInt256 op1 = VM_pop(vm);
+                UInt256 op2 = pop(vm);
+                UInt256 op1 = pop(vm);
                 
                 if (UInt256_equals(&op2, &ZERO)) op1 = ZERO;
                 else UInt256_rem(&op1, &op2);
 
-                VM_push(vm, op1);
+                push(vm, op1);
 
                 break;
             }
 
             case OP_SMOD: {
-                UInt256 op2 = VM_pop(vm);
-                UInt256 op1 = VM_pop(vm);
+                UInt256 op2 = pop(vm);
+                UInt256 op1 = pop(vm);
                 
                 if (UInt256_equals(&op2, &ZERO)) op1 = ZERO;
                 else {
@@ -152,15 +153,15 @@ UInt256 *VM_eval(VM *vm) {
                     }
                 }
 
-                VM_push(vm, op1);
+                push(vm, op1);
 
                 break;
             }
 
             case OP_ADDMOD: {
-                UInt256 op3 = VM_pop(vm);
-                UInt256 op2 = VM_pop(vm);
-                UInt256 op1 = VM_pop(vm);
+                UInt256 op3 = pop(vm);
+                UInt256 op2 = pop(vm);
+                UInt256 op1 = pop(vm);
 
                 if (UInt256_equals(&op3, &ZERO)) op1 = ZERO;
                 else {
@@ -168,50 +169,33 @@ UInt256 *VM_eval(VM *vm) {
                     UInt256_rem(&op1, &op3);
                 }
 
-                VM_push(vm, op1);
+                push(vm, op1);
 
                 break;
             }
 
-            case OP_MULMOD: {
-                UInt256 op3 = VM_pop(vm);
-                UInt256 op2 = VM_pop(vm);
-                UInt256 op1 = VM_pop(vm);
-
-                if (UInt256_equals(&op3, &ZERO)) op1 = ZERO;
+            HANDLE(OP_MULMOD, 3, {
+                if (UInt256_equals(&ops[2], &ZERO)) ops[0] = ZERO;
                 else {
-                    UInt256_mult(&op1, &op2);
-                    UInt256_rem(&op1, &op3);
+                    UInt256_mult(&ops[0], &ops[1]);
+                    UInt256_rem(&ops[0], &ops[2]);
                 }
+                push(vm, ops[0]);
+            })
 
-                VM_push(vm, op1);
-
-                break;
-            }
-
-            case OP_EXP: {
-                UInt256 op2 = VM_pop(vm);
-                UInt256 op1 = VM_pop(vm);
-
-                UInt256_pow(&op1, &op2);
-                VM_push(vm, op1);
-
-                break;
-            }
-
-            case OP_SIGNEXTEND: {
-                UInt256 op2 = VM_pop(vm);
-                UInt256 op1 = VM_pop(vm);
-
-                int t = 256 - 8 * (UInt256_get(&op1, 0) + 1);
-
+            HANDLE(OP_EXP, 2, {
+                UInt256_pow(&ops[0], &ops[1]);
+                push(vm, ops[0]);
+            })
+            
+            HANDLE(OP_SIGNEXTEND, 2, {
+                int t = 256 - 8 * (UInt256_get(&ops[0], 0) + 1);
                 for (int i = 0; i < 255; i++) {
-                    if (i <= t) UInt256_set(&op1, i, UInt256_get(&op2, t));
-                    else UInt256_set(&op1, i, UInt256_get(&op2, i));
+                    if (i >= t) UInt256_set(&ops[0], i, UInt256_get(&ops[1], t));
+                    else UInt256_set(&ops[0], i, UInt256_get(&ops[1], i));
                 }
-
-                break;
-            }
+                push(vm, ops[0]);
+            })
 
             case OP_LT: {
                 // TODO: Handle `LT` here
