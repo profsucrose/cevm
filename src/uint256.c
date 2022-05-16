@@ -172,7 +172,7 @@ void UInt256_shiftright(UInt256 *integer, uint32_t op) {
 
 /* Get length of UInt256 (number of digits after MSB) */
 int UInt256_length(const UInt256 *integer) {
-    for (int i = 3; i >= 0; i--) {
+    for (int i = 0; i < 4; i++) {
         int32_t left = (int32_t)(integer->elements[i] >> 32);
         int32_t right = (int32_t)integer->elements[i];
 
@@ -183,7 +183,26 @@ int UInt256_length(const UInt256 *integer) {
     return 0;
 }
 
-void UInt256_div(UInt256 *integer, const UInt256 *op) {
+void UInt256_mult(UInt256 *integer, const UInt256 *op) {
+    /* Long multiplication (TODO: Karatsuba) */
+
+    UInt256 result = UInt256_from(0);
+
+    UInt256 tmp_integer = UInt256_from_u256(integer);
+
+    for (int i = 255; i >= 256 - UInt256_length(op); i--) {
+        // TODO: only shift on add
+        if (UInt256_get(op, i))
+            UInt256_add(&result, &tmp_integer);
+
+        UInt256_shiftleft(&tmp_integer, 1);
+    }
+
+    // Move result to input
+    UInt256_copy(&result, integer);
+}
+
+static void UInt256_div_rem(UInt256 *integer, const UInt256 *op, UInt256 *rem) {
     if (UInt256_equals(op, &ZERO)) {
         fprintf(stderr, "Tried to divide UInt256 by zero\n");
         exit(1);
@@ -211,32 +230,17 @@ void UInt256_div(UInt256 *integer, const UInt256 *op) {
     }
 
     UInt256_copy(&result, integer);
+    
+    // Copy remainder to output if provided valid pointer
+    if (rem != NULL) UInt256_copy(&dividend, rem);
 }
 
-void UInt256_mult(UInt256 *integer, const UInt256 *op) {
-    /* Long multiplication (TODO: Karatsuba) */
-
-    UInt256 result = UInt256_from(0);
-
-    UInt256 tmp_integer = UInt256_from_u256(integer);
-
-    for (int i = 255; i >= 256 - UInt256_length(op); i--) {
-        // TODO: only shift on add
-        if (UInt256_get(op, i))
-            UInt256_add(&result, &tmp_integer);
-
-        UInt256_shiftleft(&tmp_integer, 1);
-    }
-
-    // Move result to input
-    UInt256_copy(&result, integer);
+void UInt256_div(UInt256 *integer, const UInt256 *op) {
+    UInt256_div_rem(integer, op, NULL);
 }
 
 void UInt256_rem(UInt256 *integer, const UInt256 *op) {
-    UInt256 result = UInt256_from_u256(integer);
-    UInt256_div(&result, op);
-    UInt256_mult(&result, op);
-    UInt256_sub(integer, &result);
+    UInt256_div_rem(integer, op, integer);
 }
 
 static UInt256 TWO = (UInt256){ { 0, 0, 0, 2 } };
@@ -321,10 +325,13 @@ void UInt256_print_to_buffer(char *buffer, const UInt256 *integer) {
         UInt256_div(&tmp, &TEN);
     }
 
-    while (i-- > 0)
-        sprintf(buffer, stack[i]);
+    /* Assert that buffer is large enough for
+    length of integer in decimal + \0 */
 
-    sprintf(buffer, '\0'); // Add null terminator
+    while (i-- > 0)
+        *(buffer++) = stack[i];
+
+    *(buffer++) = '\0'; // Append null terminator
 }
 
 void UInt256_print_to(FILE *file, const UInt256 *integer) {
