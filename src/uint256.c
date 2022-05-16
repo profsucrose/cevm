@@ -172,15 +172,12 @@ void UInt256_shiftright(UInt256 *integer, uint32_t op) {
 
 /* Get length of UInt256 (number of digits after MSB) */
 int UInt256_length(const UInt256 *integer) {
-    uint32_t *ptr = (uint32_t*)&integer->elements[0], lz, word;
-    ptr--; // Move back 1 for left-most uint32
+    for (int i = 3; i >= 0; i--) {
+        int32_t left = (int32_t)(integer->elements[i] >> 32);
+        int32_t right = (int32_t)integer->elements[i];
 
-    for (int i = 0; i <= 7; i++) {
-        word = ptr[i];
-        if (word != 0) {
-            lz = __builtin_clz(word);
-            return (32 - lz) + 32 * (7 - i);
-        }
+        if (left != 0) return (32 - __builtin_clz(left)) + (3 - i) * 64 + 32;
+        if (right != 0) return (32 - __builtin_clz(right)) + (3 - i) * 64;
     }
 
     return 0;
@@ -303,8 +300,31 @@ void __print_bits(size_t size, const void *ptr) {
 void UInt256_print_bits(const UInt256 *value) {
     for (int i = 0; i < 4; i++)
         __print_bits(sizeof(uint64_t), (void*)&value->elements[i]);
+}
 
-    printf("\n");
+// TODO: Dry/add code sharing to print functions
+void UInt256_print_to_buffer(char *buffer, const UInt256 *integer) {
+    UInt256 tmp = UInt256_from_u256(integer);
+
+    char stack[76]; /* 2^(256-1) < 10^76 */
+    int i = 0;
+
+    UInt256 rem_ten;
+
+    while (UInt256_gt(&tmp, &ZERO)) {
+        UInt256_copy(&tmp, &rem_ten);
+
+        UInt256_rem(&rem_ten, &TEN);
+
+        stack[i++] = 48 + rem_ten.elements[3];
+
+        UInt256_div(&tmp, &TEN);
+    }
+
+    while (i-- > 0)
+        sprintf(buffer, stack[i]);
+
+    sprintf(buffer, '\0'); // Add null terminator
 }
 
 void UInt256_print_to(FILE *file, const UInt256 *integer) {
@@ -330,5 +350,5 @@ void UInt256_print_to(FILE *file, const UInt256 *integer) {
 }
 
 void UInt256_print(const UInt256 *integer) {
-    UInt256_print_to(stderr, integer);
+    UInt256_print_to(stdout, integer);
 }

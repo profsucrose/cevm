@@ -4,39 +4,73 @@
 #include "storage.h"
 #include "uint256.h"
 
+static UInt256 LIMIT = (UInt256){ { 0, 0, 0, ULLONG_MAX } };
+
+void test_UInt256_length() {
+    assert(UInt256_length(&ZERO) == 0);
+
+    for (int i = 0; i < 255; i++) {
+        UInt256 a = ONE;
+        UInt256_shiftleft(&a, (uint32_t)i);
+
+        int length = UInt256_length(&a);
+        assert(length == (i + 1));
+    }
+}
+
+void test_UInt256_mult() {
+    char u256_out[255];
+    char double_out[255];
+
+    for (int i = 0; i < 255; i++) {
+        uint64_t a = (uint64_t)rand(); // less than 2^31
+        uint64_t b = (uint64_t)rand(); // less than 2^31
+
+        UInt256 a_u256 = UInt256_from(a);
+        UInt256 b_u256 = UInt256_from(b);
+
+        double c = (double)a * (double)b * (double)ULLONG_MAX;
+
+        UInt256_mult(&a_u256, &b_u256);
+        UInt256_mult(&a_u256, &LIMIT);
+
+        UInt256_print_bits(&a_u256); printf("\n");
+        printf("%llu * %llu * %llu = %.0f\n", a, b, ULLONG_MAX, c);
+        UInt256_print(&a_u256); printf(" = %.0f\n", c);
+        
+        // UInt256_print_to_buffer(&out);
+        // sprintf(double_out, "%f\0", c);
+        
+    }
+}
+
+void test_UInt256_div() {
+    char u256_out[255];
+    char double_out[255];
+
+    for (int i = 0; i < 255; i++) {
+        uint64_t a = (uint64_t)rand(); // less than 2^31
+        uint64_t b = (uint64_t)rand(); // less than 2^31
+
+        // UInt256 division
+        UInt256 a_u256 = UInt256_from(a);
+        UInt256 b_u256 = UInt256_from(b);
+        UInt256_add(&a_u256, &LIMIT);
+        UInt256_add(&a_u256, &LIMIT);
+        UInt256_div(&a_u256, &b_u256);
+
+        // Native division
+        double c = ((double)a + (double)ULLONG_MAX + (double)ULLONG_MAX) / (double)b;
+
+        printf("(%llu + %llu + %llu) / %llu = %0.f, u256: ", a, ULLONG_MAX, ULLONG_MAX, b, c);
+        UInt256_print(&a_u256);
+        printf("\n");
+    }
+}
 
 int main() {
     srand(time(NULL));
 
-    UInt256 limit = UInt256_from(ULLONG_MAX);
-
-    for (int i = 0; i < 1000; i++) {
-        uint64_t a = (uint64_t)rand();
-        uint64_t b = (uint64_t)rand();
-
-        UInt256 u256_a = UInt256_from(a);
-        UInt256 u256_b = UInt256_from(b);
-
-        UInt256_add(&u256_a, &u256_b);
-        UInt256_add(&u256_a, &limit);
-
-        printf("Adding %llu %llu %llu\n", a, b, ULLONG_MAX);
-        UInt256_print(&u256_a); printf("\n");
-        UInt256_print_bits(&u256_a);
-        printf("Length: %llu\n", UInt256_length(&u256_a));
-
-        UInt256 ten = UInt256_from(10);
-        UInt256_div(&u256_a, &ten);
-        printf("Division by 10:\n"); UInt256_print_bits(&u256_a);
-
-        bignum bignum_a, bignum_b, bignum_c;
-        int_to_bignum((int)a, &bignum_a);
-        int_to_bignum((int)b, &bignum_b);
-        add_bignum(&bignum_a, &bignum_b, &bignum_c);
-
-        print_bignum(&bignum_c);
-    }
-
-    // for (int i = 0; i < a.lastdigit; i++)
-    //     printf("%d", a.digits[i]);
+    test_UInt256_length();
+    test_UInt256_div();
 }
