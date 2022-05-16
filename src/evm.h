@@ -161,20 +161,26 @@ typedef enum {
 
 // Stack has depth of 1024 items
 #define STACK_MAX 1024
+#define CONTRACT_MAX 1024
+#define CALLDATA_MAX 1024
 
 typedef struct {
     // Bytecode + program counter
     uint8_t *code;
+    size_t code_size;
     size_t pc;
 
     UInt256 stack[STACK_MAX];
     UInt256 *stack_top;
 
+    VM *contracts[CONTRACT_MAX];
+    size_t contracts_length;
+
     Storage storage;
     Memory memory;
 } VM;
 
-void VM_init(VM *vm, uint8_t *code, int32_t *constants);
+void VM_init(VM *vm, uint8_t *code, uint8_t calldata[CALLDATA_MAX]);
 UInt256 *VM_eval(VM *vm);
 
 #endif

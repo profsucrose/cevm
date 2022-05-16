@@ -1,13 +1,21 @@
 #include "evm.h"
 
-void VM_init(VM *vm, uint8_t *code, int32_t *constants) {
+void VM_init(VM *vm, uint8_t *code, size_t code_size) {
+    // Code
     vm->code = code;
+    vm->code_size = code_size;
     vm->pc = 0;
 
+    // Stack
     vm->stack_top = (UInt256*)vm->stack;
 
+    // Subcontracts
+    vm->contracts_length = 0;
+
+    // Storage
     Storage_init(&vm->storage);
 
+    // Memory
     Memory_init(&vm->memory);
 }
 
@@ -20,6 +28,11 @@ static void push(VM *vm, const UInt256 value) {
     *vm->stack_top++ = value;
 }
 
+static size_t add_contract(VM *vm, const VM *contract) {
+    vm->contracts[vm->contracts_length++] = contract;
+    return vm->contracts_length - 1;
+}
+
 static uint8_t consume_byte(VM *vm) {
     return vm->code[vm->pc++];
 }
@@ -28,7 +41,7 @@ static uint8_t consume_byte(VM *vm) {
 static UInt256 MINUS_UINT256_LIMIT = (UInt256){ { 0, 0, 0, 1 } };
 static UInt256 MINUS_ONE = (UInt256){ { ULLONG_MAX, ULLONG_MAX, ULLONG_MAX, ULLONG_MAX } };
 
-UInt256 *VM_eval(VM *vm) {
+UInt256 *VM_call(VM *vm, uint8_t *calldata, size_t calldata_size) {
     OpCode opcode;
 
     for (;;) {
@@ -359,27 +372,32 @@ UInt256 *VM_eval(VM *vm) {
             }
 
             case OP_CALLDATALOAD: {
-                error("Unhandled opcode CALLDATALOAD\n");
+                UInt256 i = pop(vm);
+                push(vm, UInt256_from(*(uint64_t*)&calldata[i.elements[3]]));
                 break;
             }
 
             case OP_CALLDATASIZE: {
-                error("Unhandled opcode CALLDATASIZE\n");
+                push(vm, UInt256_from(calldata_size));
                 break;
             }
 
             case OP_CALLDATACOPY: {
-                error("Unhandled opcode CALLDATACOPY\n");
+                UInt256 size = pop(vm), offset = pop(vm), destOffset = pop(vm);
+                for (size_t i = 0; i < size.elements[3]; i++)
+                    vm->memory.array[destOffset.elements[3] + i] = calldata[offset.elements[3] + i];
                 break;
             }
 
             case OP_CODESIZE: {
-                error("Unhandled opcode CODESIZE\n");
+                push(vm, UInt256_from(vm->code_size));
                 break;
             }
 
             case OP_CODECOPY: {
-                error("Unhandled opcode CODECOPY\n");
+                UInt256 size = pop(vm), offset = pop(vm), destOffset = pop(vm);
+                for (size_t i = 0; i < size.elements[3]; i++)
+                    vm->memory.array[destOffset.elements[3] + i] = vm->code[offset.elements[3] + i];
                 break;
             }
 
@@ -642,16 +660,26 @@ UInt256 *VM_eval(VM *vm) {
             }
 
             case OP_CREATE: {
-                error("Unhandled opcode CREATE\n");
+                UInt256 _value = pop(vm), offset = pop(vm), size = pop(vm);
+
+                uint8_t *code = malloc(size.elements[3]);
+                for (size_t i = 0; i < size.elements[3]; i++)
+                    code[i] = vm->memory.array[offset.elements[3] + i];
+
+                VM *contract = (VM*)malloc(sizeof(VM));
+                VM_init(contract, &code, size.elements[3]);
+
+                // Add contract to local buffer and push index
+                push(vm, UInt256_from((uint64_t)add_contract(&vm, contract))); 
+
                 break;
             }
 
             case OP_CALL: {
-                // UInt256 ret_size = pop(vm), ret_offset = pop(vm), args_size = pop(vm),
-                //     args_offset = pop(vm), value = pop(vm), address = pop(vm), gas = pop(vm);
+                UInt256 ret_size = pop(vm), ret_offset = pop(vm), args_size = pop(vm),
+                    args_offset = pop(vm), _value = pop(vm), address = pop(vm), _gas = pop(vm);
 
-                // TODO: Handle hardcoded CALL addresses for Playdate utils
-                error("Unhandled opcode CALL\n");
+                // VM_call(&vm, )
 
                 break;
             }
