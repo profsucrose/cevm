@@ -1,15 +1,7 @@
-#include "evm.h"
+#include "vm.h"
 
-void VM_init(VM *vm, uint8_t *code, size_t code_size) {
-    // Code
-    vm->code = code;
-    vm->code_size = code_size;
-    vm->pc = 0;
-
-    // Stack
-    vm->stack_top = (UInt256*)vm->stack;
-
-    // Subcontracts
+void VM_init(VM *vm) {
+    // Contracts
     vm->contracts_length = 0;
 
     // Storage
@@ -19,68 +11,66 @@ void VM_init(VM *vm, uint8_t *code, size_t code_size) {
     Memory_init(&vm->memory);
 }
 
-/* Copy UInt256 */
-static UInt256 pop(VM *vm) {
-    return *(--vm->stack_top);
-}
-
-static void push(VM *vm, const UInt256 value) {
-    *vm->stack_top++ = value;
-}
-
 static size_t add_contract(VM *vm, const VM *contract) {
     vm->contracts[vm->contracts_length++] = contract;
     return vm->contracts_length - 1;
-}
-
-static uint8_t consume_byte(VM *vm) {
-    return vm->code[vm->pc++];
 }
 
 // -2^255 in 2's compliment is 1
 static UInt256 MINUS_UINT256_LIMIT = (UInt256){ { 0, 0, 0, 1 } };
 static UInt256 MINUS_ONE = (UInt256){ { ULLONG_MAX, ULLONG_MAX, ULLONG_MAX, ULLONG_MAX } };
 
-UInt256 *VM_call(VM *vm, uint8_t *calldata, size_t calldata_size) {
+void *VM_call(VM *vm, const Contract *contract, const uint8_t *calldata, const size_t calldata_size, const size_t ret_offset, const size_t ret_size) {
+    UInt256 stack[STACK_MAX];
+    UInt256 *stack_top = stack;
+
+    size_t pc = 0;
+
+    #define CONSUME_BYTE() (contract->code[pc++])
+
+    // Copy UInt256 for stack operations
+    #define POP() (*--stack_top)
+    #define PUSH(value) *stack_top++ = value
+
     OpCode opcode;
 
     for (;;) {
-        switch (opcode = consume_byte(vm)) {
+        switch (opcode = CONSUME_BYTE()) {
             case OP_STOP: {
                 break;
             }
 
             case OP_ADD: {
-                UInt256 b = pop(vm), a = pop(vm);
+                UInt256 b = POP(), a = POP();
                 UInt256_add(&a, &b);
-                push(vm, a);
+                PUSH(a);
                 break;
             }
 
             case OP_MUL: {
-                UInt256 b = pop(vm), a = pop(vm);
+                UInt256 b = POP(), a = POP();
                 UInt256_mult(&a, &b);
-                push(vm, a);
+                PUSH(a);
                 break;
             }
 
             case OP_SUB: {
-                UInt256 b = pop(vm), a = pop(vm);
+                UInt256 b = POP(), a = POP();
                 UInt256_sub(&a, &b);
-                push(vm, a);
+                PUSH(a);
                 break;
             }
 
             case OP_DIV: {
-                UInt256 b = pop(vm), a = pop(vm);
+                UInt256 b = POP(), a = POP();
                 if (UInt256_equals(&a, &ZERO)) a = ZERO;
                 else UInt256_div(&a, &b);
-                push(vm, a);
+                PUSH(a);
                 break;
             }
 
             case OP_SDIV: {
-                UInt256 b = pop(vm), a = pop(vm);
+                UInt256 b = POP(), a = POP();
 
                 if (UInt256_equals(&b, &ZERO)) a = ZERO;
                 else if (UInt256_equals(&a, &MINUS_UINT256_LIMIT) &&
@@ -100,24 +90,24 @@ UInt256 *VM_call(VM *vm, uint8_t *calldata, size_t calldata_size) {
                     }
                 }
 
-                push(vm, a);
+                PUSH(a);
 
                 break;
             }
 
             case OP_MOD: {
-                UInt256 b = pop(vm), a = pop(vm);
+                UInt256 b = POP(), a = POP();
                 
                 if (UInt256_equals(&b, &ZERO)) a = ZERO;
                 else UInt256_rem(&a, &b);
 
-                push(vm, a);
+                PUSH(a);
 
                 break;
             }
 
             case OP_SMOD: {
-                UInt256 b = pop(vm), a = pop(vm);
+                UInt256 b = POP(), a = POP();
                 
                 if (UInt256_equals(&b, &ZERO)) a = ZERO;
                 else {
@@ -129,13 +119,13 @@ UInt256 *VM_call(VM *vm, uint8_t *calldata, size_t calldata_size) {
                     if (a_negative) UInt256_compliment(&a);
                 }
 
-                push(vm, a);
+                PUSH(a);
 
                 break;
             }
 
             case OP_ADDMOD: {
-                UInt256 a = pop(vm), b = pop(vm), N = pop(vm);
+                UInt256 a = POP(), b = POP(), N = POP();
 
                 if (UInt256_equals(&N, &ZERO)) a = ZERO;
                 else {
@@ -143,13 +133,13 @@ UInt256 *VM_call(VM *vm, uint8_t *calldata, size_t calldata_size) {
                     UInt256_rem(&a, &N);
                 }
 
-                push(vm, a);
+                PUSH(a);
 
                 break;
             }
 
             case OP_MULMOD: {
-                UInt256 N = pop(vm), b = pop(vm), a = pop(vm);
+                UInt256 N = POP(), b = POP(), a = POP();
 
                 if (UInt256_equals(&N, &ZERO)) a = ZERO;
                 else {
@@ -157,46 +147,46 @@ UInt256 *VM_call(VM *vm, uint8_t *calldata, size_t calldata_size) {
                     UInt256_rem(&a, &N);
                 }
 
-                push(vm, a);
+                PUSH(a);
             }
 
             case OP_EXP: {
-                UInt256 exponent = pop(vm), a = pop(vm);
+                UInt256 exponent = POP(), a = POP();
 
                 UInt256_pow(&a, &exponent);
-                push(vm, a);
+                PUSH(a);
 
                 break;
             }
             
             case OP_SIGNEXTEND: {
-                UInt256 x = pop(vm), b = pop(vm);
+                UInt256 x = POP(), b = POP();
 
                 int t = 256 - 8 * (UInt256_get(&b, 0) + 1);
 
                 for (int i = 0; i < 255; i++)
                     UInt256_set(&b, i, UInt256_get(&x, i >= t ? t : i));
 
-                push(vm, b);
+                PUSH(b);
 
                 break;
             }
 
             case OP_LT: {
-                UInt256 b = pop(vm), a = pop(vm);
-                push(vm, UInt256_lt(&a, &b) ? ONE : ZERO);
+                UInt256 b = POP(), a = POP();
+                PUSH(UInt256_lt(&a, &b) ? ONE : ZERO);
                 break;
             }
 
             case OP_GT: {
-                UInt256 b = pop(vm), a = pop(vm);
-                push(vm, UInt256_gt(&a, &b) ? ONE : ZERO);
+                UInt256 b = POP(), a = POP();
+                PUSH(UInt256_gt(&a, &b) ? ONE : ZERO);
                 break;
             }
 
             case OP_SLT: {
                 // Assert ops are in 2's compliment
-                UInt256 b = pop(vm), a = pop(vm);
+                UInt256 b = POP(), a = POP();
 
                 UInt256 a_abs = a; UInt256_abs(&a_abs);
                 UInt256 b_abs = b; UInt256_abs(&b_abs);
@@ -211,14 +201,14 @@ UInt256 *VM_call(VM *vm, uint8_t *calldata, size_t calldata_size) {
                     (a_negative && !b_negative) ||                     // if a < 0 and b > 0, then true
                     (a_negative && b_negative && !abs_lt);             // if a < 0 and b < 0, then true if |a| > |b|
 
-                push(vm, lt ? ONE : ZERO);
+                PUSH(lt ? ONE : ZERO);
 
                 break;
             }
 
             case OP_SGT: {
                 // Assert ops are in 2's compliment
-                UInt256 b = pop(vm), a = pop(vm);
+                UInt256 b = POP(), a = POP();
 
                 UInt256 a_abs = a; UInt256_abs(&a_abs);
                 UInt256 b_abs = b; UInt256_abs(&b_abs);
@@ -232,84 +222,84 @@ UInt256 *VM_call(VM *vm, uint8_t *calldata, size_t calldata_size) {
                     (!a_negative && b_negative) ||                     // if a > 0 and b < 0, then true
                     (a_negative && b_negative && !abs_gt);             // if a < 0 and b < 0, then |a| < |b|
 
-                push(vm, gt ? ONE : ZERO);
+                PUSH(gt ? ONE : ZERO);
 
                 break;
             }
 
             case OP_EQ: {
-                UInt256 b = pop(vm), a = pop(vm);
+                UInt256 b = POP(), a = POP();
 
-                push(vm, UInt256_equals(&a, &b) ? ONE : ZERO);
+                PUSH(UInt256_equals(&a, &b) ? ONE : ZERO);
 
                 break;
             }
 
             case OP_ISZERO: {
-                UInt256 a = pop(vm);
-                push(vm, UInt256_equals(&a, &ZERO) ? ONE : ZERO);
+                UInt256 a = POP();
+                PUSH(UInt256_equals(&a, &ZERO) ? ONE : ZERO);
                 break;
             }
 
             case OP_AND: {
-                UInt256 b = pop(vm), a = pop(vm);
+                UInt256 b = POP(), a = POP();
                 UInt256_and(&a, &b);
-                push(vm, a);
+                PUSH(a);
                 break;
             }
 
             case OP_OR: {
-                UInt256 b = pop(vm), a = pop(vm);
+                UInt256 b = POP(), a = POP();
                 UInt256_or(&a, &b);
-                push(vm, a);
+                PUSH(a);
                 break;
             }
 
             case OP_XOR: {
-                UInt256 b = pop(vm), a = pop(vm);
+                UInt256 b = POP(), a = POP();
                 UInt256_xor(&a, &b);
-                push(vm, a);
+                PUSH(a);
                 break;
             }
 
             case OP_NOT: {
-                UInt256 a = pop(vm);
+                UInt256 a = POP();
                 UInt256_not(&a);
-                push(vm, a);
+                PUSH(a);
                 break;
             }
 
             case OP_BYTE: {
-                UInt256 x = pop(vm);
-                int i = pop(vm).elements[0];
+                UInt256 x = POP();
+                int i = POP().elements[0];
 
                 // Index starting from most significant byte moving backwards
                 // if index is in range
                 UInt256 y = i > 31 ? ZERO : UInt256_from((uint64_t)*(((uint8_t*)&x.elements[3]) - i));
 
-                push(vm, y);
+                PUSH(y);
                 break;
             }
 
             case OP_SHL: {
-                UInt256 value = pop(vm);
-                uint32_t shift = (uint32_t)pop(vm).elements[3];
+                UInt256 value = POP();
+                uint32_t shift = (uint32_t)POP().elements[3];
                 UInt256_shiftleft(&value, shift);
-                push(vm, value);
+                PUSH(value);
                 break;
             }
 
             case OP_SHR: {
-                UInt256 value = pop(vm);
-                uint32_t shift = (uint32_t)pop(vm).elements[3];
+                UInt256 value = POP();
+                uint32_t shift = (uint32_t)POP().elements[3];
                 UInt256_shiftright(&value, shift);
-                push(vm, value);
+                PUSH(value);
                 break;
             }
 
             case OP_SAR: {
-                UInt256 value = pop(vm);
-                uint32_t shift = (uint32_t)pop(vm).elements[3];
+                UInt256 value = POP();
+                uint32_t shift = (uint32_t)POP().elements[3];
 
                 UInt256_shiftright(&value, shift);
 
@@ -322,13 +312,13 @@ UInt256 *VM_call(VM *vm, uint8_t *calldata, size_t calldata_size) {
                     value.elements[3] |= (ULLONG_MAX << (64 - (shift - 192)));
                 }
 
-                push(vm, value);
+                PUSH(value);
 
                 break;
             }
 
             case OP_SHA3: {
-                uint64_t size = pop(vm).elements[3], offset = pop(vm).elements[3];
+                uint64_t size = POP().elements[3], offset = POP().elements[3];
 
                 SHA3_CTX ctx;
                 Keccak_init(&ctx);
@@ -341,7 +331,7 @@ UInt256 *VM_call(VM *vm, uint8_t *calldata, size_t calldata_size) {
                 (either byte or bit wise) */
                 UInt256 hash = (UInt256){ { buffer[0], buffer[1], buffer[2], buffer[3] } };
 
-                push(vm, hash);
+                PUSH(hash);
                 
                 break;
             }
@@ -372,32 +362,32 @@ UInt256 *VM_call(VM *vm, uint8_t *calldata, size_t calldata_size) {
             }
 
             case OP_CALLDATALOAD: {
-                UInt256 i = pop(vm);
-                push(vm, UInt256_from(*(uint64_t*)&calldata[i.elements[3]]));
+                UInt256 i = POP();
+                PUSH(UInt256_from(*(uint64_t*)&calldata[i.elements[3]]));
                 break;
             }
 
             case OP_CALLDATASIZE: {
-                push(vm, UInt256_from(calldata_size));
+                PUSH(UInt256_from(calldata_size));
                 break;
             }
 
             case OP_CALLDATACOPY: {
-                UInt256 size = pop(vm), offset = pop(vm), destOffset = pop(vm);
+                UInt256 size = POP(), offset = POP(), destOffset = POP();
                 for (size_t i = 0; i < size.elements[3]; i++)
                     vm->memory.array[destOffset.elements[3] + i] = calldata[offset.elements[3] + i];
                 break;
             }
 
             case OP_CODESIZE: {
-                push(vm, UInt256_from(vm->code_size));
+                PUSH(UInt256_from(contract->code_size));
                 break;
             }
 
             case OP_CODECOPY: {
-                UInt256 size = pop(vm), offset = pop(vm), destOffset = pop(vm);
+                UInt256 size = POP(), offset = POP(), destOffset = POP();
                 for (size_t i = 0; i < size.elements[3]; i++)
-                    vm->memory.array[destOffset.elements[3] + i] = vm->code[offset.elements[3] + i];
+                    vm->memory.array[destOffset.elements[3] + i] = contract->code[offset.elements[3] + i];
                 break;
             }
 
@@ -477,23 +467,23 @@ UInt256 *VM_call(VM *vm, uint8_t *calldata, size_t calldata_size) {
             }
 
             case OP_POP: {
-                pop(vm); // Throw away value
+                POP(); // Throw away value
                 break;
             }
 
             /* BM: Byte array operations are little-endian */
 
             case OP_MLOAD: {
-                uint64_t offset = pop(vm).elements[3];
+                uint64_t offset = POP().elements[3];
                 uint64_t *mem = (uint64_t*)Memory_offset(&vm->memory, offset);
                 UInt256 value = (UInt256){ { mem[3], mem[2], mem[1], mem[0] } };
-                push(vm, value);
+                PUSH(value);
                 break;
             }
 
             case OP_MSTORE: {
-                UInt256 value = pop(vm);
-                uint64_t offset = pop(vm).elements[3];
+                UInt256 value = POP();
+                uint64_t offset = POP().elements[3];
                 
                 // Reverse and store in buffer for
                 // writing little-endian to memory
@@ -505,47 +495,51 @@ UInt256 *VM_call(VM *vm, uint8_t *calldata, size_t calldata_size) {
             }
 
             case OP_MSTORE8: {
-                UInt256 value = pop(vm);
-                uint64_t offset = pop(vm).elements[3];
+                UInt256 value = POP();
+                uint64_t offset = POP().elements[3];
                 Memory_insert(&vm->memory, offset, (uint8_t*)&value.elements[3], 8);
                 break;
             }
 
             case OP_SLOAD: {
-                UInt256 key = pop(vm), value;
+                UInt256 key = POP(), value;
                 UInt256_copy(Storage_get(&vm->storage, &key), &value);
-                push(vm, value);
+                PUSH(value);
                 break;
             }
 
             case OP_SSTORE: {
-                UInt256 value = pop(vm), key = pop(vm);
+                UInt256 value = POP(), key = POP();
                 Storage_insert(&vm->storage, &key, &value);
                 break;
             }
 
             case OP_JUMP: {
-                UInt256 counter = pop(vm);
-                size_t pc = (size_t)counter.elements[3];
-                if (vm->code[pc] == OP_JUMPDEST) vm->pc = (size_t)counter.elements[3];
+                UInt256 counter = POP();
+                size_t new_pc = (size_t)counter.elements[3];
+                if (contract->code[new_pc] == OP_JUMPDEST) pc = new_pc;
                 else error("Expected JUMP instruction to jump to JUMPDEST, got %zu\n", pc);
                 break;
             }
 
             case OP_JUMPI: {
-                UInt256 b = pop(vm), counter = pop(vm);
-                if (!UInt256_equals(&b, &ZERO)) vm->pc = counter.elements[3];
+                UInt256 b = POP(), counter = POP();
+                size_t new_pc = counter.elements[3];
+                if (!UInt256_equals(&b, &ZERO)) {
+                    if (contract->code[new_pc] == OP_JUMPDEST) pc = new_pc;
+                    else error("Expected JUMPI instruction to jump to JUMPDEST, got %zu\n", pc);
+                }
                 break;
             }
 
             case OP_PC: {
-                push(vm, UInt256_from(vm->pc - 1));
+                PUSH(UInt256_from(pc - 1));
                 break;
             }
 
             case OP_MSIZE: {
                 // TODO: Not sure about starting memory capacity/expansion?
-                push(vm, UInt256_from(vm->memory.capacity));
+                PUSH(UInt256_from(vm->memory.capacity));
                 break;
             }
 
@@ -599,7 +593,7 @@ UInt256 *VM_call(VM *vm, uint8_t *calldata, size_t calldata_size) {
                 for (int i = 0; i < length; i++)
                     *(buffer - i) = consume_byte(vm);
                 
-                push(vm, value);
+                PUSH(value);
                 
                 break;
             }
@@ -622,8 +616,8 @@ UInt256 *VM_call(VM *vm, uint8_t *calldata, size_t calldata_size) {
             case OP_DUP16: {
                 uint64_t stack_offset = opcode - OP_DUP1;
                 for (int i = stack_offset + 1; i > 0; i--)
-                    vm->stack[i] = vm->stack[i - 1];
-                vm->stack[0] = vm->stack[stack_offset + 1];
+                    stack[i] = stack[i - 1];
+                stack[0] = stack[stack_offset + 1];
                 break;
             }
 
@@ -644,9 +638,9 @@ UInt256 *VM_call(VM *vm, uint8_t *calldata, size_t calldata_size) {
             case OP_SWAP15:
             case OP_SWAP16: {
                 uint64_t swap_index = opcode - OP_SWAP1 + 1;
-                UInt256 tmp = vm->stack[0];
-                vm->stack[0] = vm->stack[swap_index];
-                vm->stack[swap_index] = tmp;
+                UInt256 tmp = stack[0];
+                stack[0] = stack[swap_index];
+                stack[swap_index] = tmp;
                 break;
             }
 
@@ -660,33 +654,38 @@ UInt256 *VM_call(VM *vm, uint8_t *calldata, size_t calldata_size) {
             }
 
             case OP_CREATE: {
-                UInt256 _value = pop(vm), offset = pop(vm), size = pop(vm);
+                UInt256 _value = POP(), offset = POP(), size = POP();
 
-                uint8_t *code = malloc(size.elements[3]);
-                for (size_t i = 0; i < size.elements[3]; i++)
+                size_t code_size = size.elements[3];
+                uint8_t *code = malloc(code_size);
+
+                for (size_t i = 0; i < code_size; i++)
                     code[i] = vm->memory.array[offset.elements[3] + i];
 
-                VM *contract = (VM*)malloc(sizeof(VM));
-                VM_init(contract, &code, size.elements[3]);
+                Contract *contract = (Contract*)malloc(sizeof(Contract));
+                
+                contract->code = code;
+                contract->code_size = code_size;
 
                 // Add contract to local buffer and push index
-                push(vm, UInt256_from((uint64_t)add_contract(&vm, contract))); 
+                PUSH(UInt256_from(add_contract(&vm, contract))); 
 
                 break;
             }
 
             case OP_CALL: {
-                UInt256 ret_size = pop(vm), ret_offset = pop(vm), args_size = pop(vm),
-                    args_offset = pop(vm), _value = pop(vm), address = pop(vm), _gas = pop(vm);
+                UInt256 ret_size = POP(), ret_offset = POP(), args_size = POP(),
+                    args_offset = POP(), _value = POP(), address = POP(), _gas = POP();
 
-                // VM_call(&vm, )
+                Contract *contract = vm->contracts[address.elements[3]];
+                VM_call(vm, contract, Memory_offset(&vm->memory, args_offset.elements[3]), args_size.elements[3], ret_offset.elements[3], ret_size.elements[3]);
 
                 break;
             }
 
             case OP_CALLCODE: {
-                // UInt256 ret_size = pop(vm), ret_offset = pop(vm), args_size = pop(vm),
-                //     args_offset = pop(vm), value = pop(vm), address = pop(vm), gas = pop(vm);
+                // UInt256 ret_size = POP(), ret_offset = POP(), args_size = POP(),
+                //     args_offset = POP(), value = POP(), address = POP(), gas = POP();
 
                 // TODO: Should maybe handle this?
                 error("Unhandled opcode CALLCODE\n");
@@ -695,8 +694,11 @@ UInt256 *VM_call(VM *vm, uint8_t *calldata, size_t calldata_size) {
             }
 
             case OP_RETURN: {
-                // TODO: Should also maybe handle this?
-                error("Unhandled opcode RETURN\n");
+                UInt256 size = POP(), offset = POP();
+
+                for (size_t i = 0; i < offset.elements[3]; i++)
+                    vm->memory.array[ret_offset + i] = vm->memory.array[offset.elements[3] + i];
+
                 break;
             }
 

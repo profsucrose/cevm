@@ -163,24 +163,24 @@ typedef enum {
 #define STACK_MAX 1024
 #define CONTRACT_MAX 1024
 #define CALLDATA_MAX 1024
+#define RET_MAX 1024
 
 typedef struct {
-    // Bytecode + program counter
     uint8_t *code;
     size_t code_size;
-    size_t pc;
+} Contract;
 
-    UInt256 stack[STACK_MAX];
-    UInt256 *stack_top;
-
-    VM *contracts[CONTRACT_MAX];
+typedef struct {
+    Contract *contracts[CONTRACT_MAX];
     size_t contracts_length;
 
     Storage storage;
     Memory memory;
+
+    uint8_t ret_buf[RET_MAX];
 } VM;
 
-void VM_init(VM *vm, uint8_t *code, uint8_t calldata[CALLDATA_MAX]);
-UInt256 *VM_eval(VM *vm);
+void VM_init(VM *vm);
+void *VM_call(VM *vm, const Contract *contract, const uint8_t *calldata, const size_t calldata_size, const uint8_t* ret_offset, const size_t ret_size);
 
 #endif
