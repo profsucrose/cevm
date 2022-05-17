@@ -20,7 +20,7 @@ static size_t add_contract(VM *vm, const VM *contract) {
 static UInt256 MINUS_UINT256_LIMIT = (UInt256){ { 0, 0, 0, 1 } };
 static UInt256 MINUS_ONE = (UInt256){ { ULLONG_MAX, ULLONG_MAX, ULLONG_MAX, ULLONG_MAX } };
 
-void *VM_call(VM *vm, const Contract *contract, const uint8_t *calldata, const size_t calldata_size, const size_t ret_offset, const size_t ret_size) {
+void *VM_call(VM *vm, const Contract *contract, const size_t caller_address, const uint8_t *calldata, const size_t calldata_size, uint8_t **out_return_buffer, size_t *out_return_buffer_size) {
     UInt256 stack[STACK_MAX];
     UInt256 *stack_top = stack;
 
@@ -352,7 +352,7 @@ void *VM_call(VM *vm, const Contract *contract, const uint8_t *calldata, const s
             }
 
             case OP_CALLER: {
-                error("Unhandled opcode CALLER\n");
+                push(UInt256_from(caller_address));
                 break;
             }
 
@@ -374,8 +374,7 @@ void *VM_call(VM *vm, const Contract *contract, const uint8_t *calldata, const s
 
             case OP_CALLDATACOPY: {
                 UInt256 size = POP(), offset = POP(), destOffset = POP();
-                for (size_t i = 0; i < size.elements[3]; i++)
-                    vm->memory.array[destOffset.elements[3] + i] = calldata[offset.elements[3] + i];
+                Memory_insert(&vm->memory, destOffset.elements[3], calldata, size.elements[3]);
                 break;
             }
 
@@ -386,8 +385,7 @@ void *VM_call(VM *vm, const Contract *contract, const uint8_t *calldata, const s
 
             case OP_CODECOPY: {
                 UInt256 size = POP(), offset = POP(), destOffset = POP();
-                for (size_t i = 0; i < size.elements[3]; i++)
-                    vm->memory.array[destOffset.elements[3] + i] = contract->code[offset.elements[3] + i];
+                Memory_insert(&vm->memory, destOffset.elements[3], contract->code, size.elements[3]);
                 break;
             }
 
@@ -397,12 +395,14 @@ void *VM_call(VM *vm, const Contract *contract, const uint8_t *calldata, const s
             }
 
             case OP_EXTCODESIZE: {
-                error("Unhandled opcode EXTCODESIZE\n");
+                UInt256 address = POP();
+                PUSH(UInt256_from(vm->contracts[address.elements[3]]->code_size));
                 break;
             }
 
             case OP_EXTCODECOPY: {
-                error("Unhandled opcode EXTCODECOPY\n");
+                UInt256 size = POP(), offset = POP(), dest_offset = POP(), address = POP();
+                Memory_insert(&vm->memory, dest_offset.elements[3], vm->contracts[address.elements[3]], size.elements[3]);
                 break;
             }
 
@@ -653,8 +653,15 @@ void *VM_call(VM *vm, const Contract *contract, const uint8_t *calldata, const s
                 break;
             }
 
-            case OP_CREATE: {
-                UInt256 _value = POP(), offset = POP(), size = POP();
+            case OP_CREATE:
+            case OP_CREATE2: {
+                // TODO: Maybe handle contract addresses differently
+                // for CREATE/CREATE2 and actually use `salt`?
+
+                // Pop unused `salt` parameter if CREATE2
+                if (opcode == OP_CREATE2) /* _salt = */ POP();
+
+                UInt256 size = POP(), _value = POP(), offset = POP();
 
                 size_t code_size = size.elements[3];
                 uint8_t *code = malloc(code_size);
@@ -673,22 +680,34 @@ void *VM_call(VM *vm, const Contract *contract, const uint8_t *calldata, const s
                 break;
             }
 
-            case OP_CALL: {
+            case OP_CALL: 
+            case OP_CALLCODE:
+            case OP_DELEGATECALL: 
+            case OP_STATICCALL: {
+                /* TODO: This block currently only handles CALL;
+                add some branching for handling nuances of CALLCODE,
+                DELEGATECALL, and STATICCALL. */
+
                 UInt256 ret_size = POP(), ret_offset = POP(), args_size = POP(),
                     args_offset = POP(), _value = POP(), address = POP(), _gas = POP();
 
                 Contract *contract = vm->contracts[address.elements[3]];
-                VM_call(vm, contract, Memory_offset(&vm->memory, args_offset.elements[3]), args_size.elements[3], ret_offset.elements[3], ret_size.elements[3]);
+                VM contract_vm;
 
-                break;
-            }
+                uint8_t *return_buffer;
+                size_t return_buffer_size;
 
-            case OP_CALLCODE: {
-                // UInt256 ret_size = POP(), ret_offset = POP(), args_size = POP(),
-                //     args_offset = POP(), value = POP(), address = POP(), gas = POP();
+                VM_init(&contract_vm);
+                
+                // TODO: Figure out how passing contract addresses should work
 
-                // TODO: Should maybe handle this?
-                error("Unhandled opcode CALLCODE\n");
+                // TODO: Handle reverts and status codes
+                VM_call(&contract_vm, contract, 0 /* TENTATIVE */, Memory_offset(&vm->memory, args_offset.elements[3]), args_size.elements[3], &return_buffer, &return_buffer_size);
+
+                // TODO: Figure out how `ret_size` should work w.r.t `return_buffer_size`?
+                
+                // Insert return data into memory
+                Memory_insert(&vm->memory, ret_offset.elements[3], return_buffer, ret_size.elements[3]);
 
                 break;
             }
@@ -696,26 +715,19 @@ void *VM_call(VM *vm, const Contract *contract, const uint8_t *calldata, const s
             case OP_RETURN: {
                 UInt256 size = POP(), offset = POP();
 
-                for (size_t i = 0; i < offset.elements[3]; i++)
-                    vm->memory.array[ret_offset + i] = vm->memory.array[offset.elements[3] + i];
+                /* Allocate new buffer, fill with return data, then
+                set passed pointer parameters `return_buffer` to point to buffer
+                and `return_buffer_size` to point to size of buffer. */
 
-                break;
-            }
+                size_t return_buffer_size = size.elements[3];
+                uint8_t* return_buffer = malloc(return_buffer_size);
 
-            case OP_DELEGATECALL: {
-                // TODO: Should also maybe handle this?
-                error("Unhandled opcode DELEGATECALL\n");
-                break;
-            }
+                for (size_t i = 0; i < size.elements[3]; i++)
+                    return_buffer[i] = vm->memory.array[offset.elements[3] + i];
+                
+                *out_return_buffer = return_buffer;
+                *out_return_buffer_size = return_buffer_size;
 
-            case OP_CREATE2: {
-                error("Unhandled opcode CREATE2\n");
-                break;
-            }
-
-            case OP_STATICCALL: {
-                // TODO: Maybe handle this as well for Playdate calls?
-                error("Unhandled opcode STATICCALL\n");
                 break;
             }
 

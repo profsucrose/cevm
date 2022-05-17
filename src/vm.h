@@ -176,11 +176,9 @@ typedef struct {
 
     Storage storage;
     Memory memory;
-
-    uint8_t ret_buf[RET_MAX];
 } VM;
 
 void VM_init(VM *vm);
-void *VM_call(VM *vm, const Contract *contract, const uint8_t *calldata, const size_t calldata_size, const uint8_t* ret_offset, const size_t ret_size);
+void *VM_call(VM *vm, const Contract *contract, const size_t caller_address, const uint8_t *calldata, const size_t calldata_size, uint8_t **out_return_buffer, size_t *out_return_buffer_size);
 
 #endif
