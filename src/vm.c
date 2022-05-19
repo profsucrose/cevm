@@ -4,9 +4,6 @@ void VM_init(VM *vm) {
     // Contracts
     vm->contracts_length = 0;
 
-    // Storage
-    Storage_init(&vm->storage);
-
     // Memory
     Memory_init(&vm->memory);
 }
@@ -20,7 +17,7 @@ static size_t add_contract(VM *vm, const VM *contract) {
 static UInt256 MINUS_UINT256_LIMIT = (UInt256){ { 0, 0, 0, 1 } };
 static UInt256 MINUS_ONE = (UInt256){ { ULLONG_MAX, ULLONG_MAX, ULLONG_MAX, ULLONG_MAX } };
 
-void *VM_call(VM *vm, const Contract *contract, const size_t caller_address, const uint8_t *calldata, const size_t calldata_size, uint8_t **out_return_buffer, size_t *out_return_buffer_size) {
+bool *VM_call(VM *vm, Storage *storage, const Contract *contract, const size_t caller_address, const uint8_t *calldata, const size_t calldata_size, uint8_t **out_return_buffer, size_t *out_return_buffer_size) {
     UInt256 stack[STACK_MAX];
     UInt256 *stack_top = stack;
 
@@ -503,14 +500,14 @@ void *VM_call(VM *vm, const Contract *contract, const size_t caller_address, con
 
             case OP_SLOAD: {
                 UInt256 key = POP(), value;
-                UInt256_copy(Storage_get(&vm->storage, &key), &value);
+                UInt256_copy(Storage_get(&storage, &key), &value);
                 PUSH(value);
                 break;
             }
 
             case OP_SSTORE: {
                 UInt256 value = POP(), key = POP();
-                Storage_insert(&vm->storage, &key, &value);
+                Storage_insert(&storage, &key, &value);
                 break;
             }
 
@@ -673,43 +670,39 @@ void *VM_call(VM *vm, const Contract *contract, const size_t caller_address, con
                 
                 contract->code = code;
                 contract->code_size = code_size;
+                contract->address = add_contract(&vm, contract);
 
                 // Add contract to local buffer and push index
-                PUSH(UInt256_from(add_contract(&vm, contract))); 
+                PUSH(UInt256_from(contract->address));
 
                 break;
             }
 
-            case OP_CALL: 
-            case OP_CALLCODE:
-            case OP_DELEGATECALL: 
-            case OP_STATICCALL: {
-                /* TODO: This block currently only handles CALL;
-                add some branching for handling nuances of CALLCODE,
-                DELEGATECALL, and STATICCALL. */
+            case OP_CALL:  {
+                UInt256 ret_size = POP(), ret_offset = POP(), args_size = POP(), args_offset = POP(), _value = POP(), address = POP(), gas = POP();
 
-                UInt256 ret_size = POP(), ret_offset = POP(), args_size = POP(),
-                    args_offset = POP(), _value = POP(), address = POP(), _gas = POP();
-
-                Contract *contract = vm->contracts[address.elements[3]];
+                Contract *contract_to_call = vm->contracts[address.elements[3]];
                 VM contract_vm;
+                VM_init(&contract_vm);
 
-                uint8_t *return_buffer;
+                uint8_t *return_buffer = (uint8_t*)malloc(ret_size.elements[3]);
                 size_t return_buffer_size;
 
-                VM_init(&contract_vm);
-                
-                // TODO: Figure out how passing contract addresses should work
-
-                // TODO: Handle reverts and status codes
-                VM_call(&contract_vm, contract, 0 /* TENTATIVE */, Memory_offset(&vm->memory, args_offset.elements[3]), args_size.elements[3], &return_buffer, &return_buffer_size);
-
-                // TODO: Figure out how `ret_size` should work w.r.t `return_buffer_size`?
-                
-                // Insert return data into memory
-                Memory_insert(&vm->memory, ret_offset.elements[3], return_buffer, ret_size.elements[3]);
+                PUSH(UInt256_from(VM_call(&contract_vm, storage, contract_to_call, contract->address, vm->memory.array + args_offset.elements[3], args_size.elements[3], &return_buffer, &return_buffer_size)));
 
                 break;
+            }
+
+            case OP_CALLCODE: {
+                // TODO
+            }
+
+            case OP_DELEGATECALL: {
+                // TODO
+            }
+
+            case OP_STATICCALL: {
+                // TODO
             }
 
             case OP_RETURN: {
@@ -728,7 +721,7 @@ void *VM_call(VM *vm, const Contract *contract, const size_t caller_address, con
                 *out_return_buffer = return_buffer;
                 *out_return_buffer_size = return_buffer_size;
 
-                break;
+                return true; // Success
             }
 
             case OP_REVERT: {
