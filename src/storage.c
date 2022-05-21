@@ -99,3 +99,44 @@ UInt256 *Storage_get(Storage *storage, const UInt256 *key) {
     // Else return retrieved value
     return entry->value;
 }
+
+void Storage_copy(const Storage *src, Storage *dest) {
+    dest->capacity = src->capacity;
+    dest->length = src->length;
+
+    dest->entries = (Entry**)malloc(sizeof(Entry*) * src->capacity);
+
+    for (size_t i = 0; i < src->length; i++) {
+        dest->entries[i] = (Entry*)malloc(sizeof(Entry));
+        UInt256_copy(&src->entries[i]->key, &dest->entries[i]->key);
+        UInt256_copy(&src->entries[i]->value, &dest->entries[i]->value);
+    }
+}
+
+inline static void free_entries(Entry **entries, size_t capacity) {
+    for (size_t i = 0; i < capacity; i++) {
+        free(storage->entries[i]->key);
+        free(storage->entries[i]->value);
+        free(storage->entries[i]);
+    }
+
+    free (entries);
+}
+
+void Storage_free(Storage *storage) {
+    free_entries(storage->entries);
+
+    free(storage->entries);
+    free(storage);
+}
+
+void Storage_move(Storage *from, Storage *to) {
+    free_entries(to->entries);
+
+    to->length = from->length;
+    to->capacity = from->capacity;
+    to->entries = from->entries;
+
+    from->entries = NULL;
+}
+    

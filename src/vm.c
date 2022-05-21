@@ -18,6 +18,12 @@ static UInt256 MINUS_UINT256_LIMIT = (UInt256){ { 0, 0, 0, 1 } };
 static UInt256 MINUS_ONE = (UInt256){ { ULLONG_MAX, ULLONG_MAX, ULLONG_MAX, ULLONG_MAX } };
 
 bool *VM_call(VM *vm, Storage *storage, const Contract *contract, const size_t caller_address, const uint8_t *calldata, const size_t calldata_size, uint8_t **out_return_buffer, size_t *out_return_buffer_size) {
+    Storage old_storage;
+    Storage_copy(storage, &old_storage);
+
+    Memory old_memory;
+    Memory_copy(&vm->memory, &old_memory);
+
     UInt256 stack[STACK_MAX];
     UInt256 *stack_top = stack;
 
@@ -66,8 +72,7 @@ bool *VM_call(VM *vm, Storage *storage, const Contract *contract, const size_t c
                 break;
             }
 
-            case OP_SDIV: {
-                UInt256 b = POP(), a = POP();
+            case OP_SDIV: { UInt256 b = POP(), a = POP();
 
                 if (UInt256_equals(&b, &ZERO)) a = ZERO;
                 else if (UInt256_equals(&a, &MINUS_UINT256_LIMIT) &&
@@ -678,8 +683,16 @@ bool *VM_call(VM *vm, Storage *storage, const Contract *contract, const size_t c
                 break;
             }
 
-            case OP_CALL:  {
-                UInt256 ret_size = POP(), ret_offset = POP(), args_size = POP(), args_offset = POP(), _value = POP(), address = POP(), gas = POP();
+            case OP_CALL:  
+            case OP_CALLCODE:
+            case OP_DELEGATECALL:
+            case OP_STATICCALL: {
+                UInt256 ret_size = POP(), ret_offset = POP(), args_size = POP(), args_offset = POP(), _value;
+                
+                /* Only CALL and CALLCODE take a `value` parameter */
+                if (opcode == OP_CALL || opcode == OP_CALLCODE) _value = POP();
+
+                UInt256 address = POP(), gas = POP();
 
                 Contract *contract_to_call = vm->contracts[address.elements[3]];
                 VM contract_vm;
@@ -688,21 +701,25 @@ bool *VM_call(VM *vm, Storage *storage, const Contract *contract, const size_t c
                 uint8_t *return_buffer = (uint8_t*)malloc(ret_size.elements[3]);
                 size_t return_buffer_size;
 
-                PUSH(UInt256_from(VM_call(&contract_vm, storage, contract_to_call, contract->address, vm->memory.array + args_offset.elements[3], args_size.elements[3], &return_buffer, &return_buffer_size)));
+                size_t subcontext_sender;
+                Storage *subcontext_storage;
+
+                if (opcode == OP_CALL) {
+                    subcontext_storage = contract->address;
+                    Storage_init(&subcontext_storage);
+                } else if (opcode == OP_CALLCODE) {
+                    subcontext_sender = caller_address;
+                    subcontext_storage = storage;
+                }
+
+                PUSH(UInt256_from(VM_call(&contract_vm, subcontext_storage, contract_to_call, subcontext_sender, vm->memory.array + args_offset.elements[3], args_size.elements[3], &return_buffer, &return_buffer_size)));
+
+                // TODO: Figure out return data parameter vs. return data size returned by subcontext?
+
+                /* Insert return data into Memory */
+                Memory_insert(&vm->memory, args_offset.elements[3], return_buffer, ret_size.elements[3]);
 
                 break;
-            }
-
-            case OP_CALLCODE: {
-                // TODO
-            }
-
-            case OP_DELEGATECALL: {
-                // TODO
-            }
-
-            case OP_STATICCALL: {
-                // TODO
             }
 
             case OP_RETURN: {
@@ -721,12 +738,18 @@ bool *VM_call(VM *vm, Storage *storage, const Contract *contract, const size_t c
                 *out_return_buffer = return_buffer;
                 *out_return_buffer_size = return_buffer_size;
 
+                /* Don't need to store state for case of reversion */
+                Storage_free(&old_storage);
+                Memory_free(&old_memory);
+
                 return true; // Success
             }
 
             case OP_REVERT: {
-                error("Unhandled opcode REVERT\n");
-                break;
+                Storage_move(&old_storage, storage);
+                Memory_move(&old_memory, &vm->memory);
+
+                return false;
             }
 
             case OP_SELFDESTRUCT: {
