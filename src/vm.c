@@ -44,35 +44,36 @@ bool *VM_call(VM *vm, Storage *storage, const Contract *contract, const size_t c
             }
 
             case OP_ADD: {
-                UInt256 b = POP(), a = POP();
+                UInt256 a = POP(), b = POP();
                 UInt256_add(&a, &b);
                 PUSH(a);
                 break;
             }
 
             case OP_MUL: {
-                UInt256 b = POP(), a = POP();
+                UInt256 a = POP(), b = POP();
                 UInt256_mult(&a, &b);
                 PUSH(a);
                 break;
             }
 
             case OP_SUB: {
-                UInt256 b = POP(), a = POP();
+                UInt256 a = POP(), b = POP();
                 UInt256_sub(&a, &b);
                 PUSH(a);
                 break;
             }
 
             case OP_DIV: {
-                UInt256 b = POP(), a = POP();
+                UInt256 a = POP(), b = POP();
                 if (UInt256_equals(&a, &ZERO)) a = ZERO;
                 else UInt256_div(&a, &b);
                 PUSH(a);
                 break;
             }
 
-            case OP_SDIV: { UInt256 b = POP(), a = POP();
+            case OP_SDIV: { 
+                UInt256 a = POP(), b = POP();
 
                 if (UInt256_equals(&b, &ZERO)) a = ZERO;
                 else if (UInt256_equals(&a, &MINUS_UINT256_LIMIT) &&
@@ -98,7 +99,7 @@ bool *VM_call(VM *vm, Storage *storage, const Contract *contract, const size_t c
             }
 
             case OP_MOD: {
-                UInt256 b = POP(), a = POP();
+                UInt256 a = POP(), b = POP();
                 
                 if (UInt256_equals(&b, &ZERO)) a = ZERO;
                 else UInt256_rem(&a, &b);
@@ -109,7 +110,7 @@ bool *VM_call(VM *vm, Storage *storage, const Contract *contract, const size_t c
             }
 
             case OP_SMOD: {
-                UInt256 b = POP(), a = POP();
+                UInt256 a = POP(), b = POP();
                 
                 if (UInt256_equals(&b, &ZERO)) a = ZERO;
                 else {
@@ -141,7 +142,7 @@ bool *VM_call(VM *vm, Storage *storage, const Contract *contract, const size_t c
             }
 
             case OP_MULMOD: {
-                UInt256 N = POP(), b = POP(), a = POP();
+                UInt256 a = POP(), b = POP(), N = POP();
 
                 if (UInt256_equals(&N, &ZERO)) a = ZERO;
                 else {
@@ -153,7 +154,7 @@ bool *VM_call(VM *vm, Storage *storage, const Contract *contract, const size_t c
             }
 
             case OP_EXP: {
-                UInt256 exponent = POP(), a = POP();
+                UInt256 a = POP(), exponent = POP();
 
                 UInt256_pow(&a, &exponent);
                 PUSH(a);
@@ -162,7 +163,7 @@ bool *VM_call(VM *vm, Storage *storage, const Contract *contract, const size_t c
             }
             
             case OP_SIGNEXTEND: {
-                UInt256 x = POP(), b = POP();
+                UInt256 b = POP(), x = POP();
 
                 int t = 256 - 8 * (UInt256_get(&b, 0) + 1);
 
@@ -175,20 +176,20 @@ bool *VM_call(VM *vm, Storage *storage, const Contract *contract, const size_t c
             }
 
             case OP_LT: {
-                UInt256 b = POP(), a = POP();
+                UInt256 a = POP(), b = POP();
                 PUSH(UInt256_lt(&a, &b) ? ONE : ZERO);
                 break;
             }
 
             case OP_GT: {
-                UInt256 b = POP(), a = POP();
+                UInt256 a = POP(), b = POP();
                 PUSH(UInt256_gt(&a, &b) ? ONE : ZERO);
                 break;
             }
 
             case OP_SLT: {
                 // Assert ops are in 2's compliment
-                UInt256 b = POP(), a = POP();
+                UInt256 a = POP(), b = POP();
 
                 UInt256 a_abs = a; UInt256_abs(&a_abs);
                 UInt256 b_abs = b; UInt256_abs(&b_abs);
@@ -210,7 +211,7 @@ bool *VM_call(VM *vm, Storage *storage, const Contract *contract, const size_t c
 
             case OP_SGT: {
                 // Assert ops are in 2's compliment
-                UInt256 b = POP(), a = POP();
+                UInt256 a = POP(), b = POP();
 
                 UInt256 a_abs = a; UInt256_abs(&a_abs);
                 UInt256 b_abs = b; UInt256_abs(&b_abs);
@@ -230,7 +231,7 @@ bool *VM_call(VM *vm, Storage *storage, const Contract *contract, const size_t c
             }
 
             case OP_EQ: {
-                UInt256 b = POP(), a = POP();
+                UInt256 a = POP(), b = POP();
 
                 PUSH(UInt256_equals(&a, &b) ? ONE : ZERO);
 
@@ -244,21 +245,21 @@ bool *VM_call(VM *vm, Storage *storage, const Contract *contract, const size_t c
             }
 
             case OP_AND: {
-                UInt256 b = POP(), a = POP();
+                UInt256 a = POP(), b = POP();
                 UInt256_and(&a, &b);
                 PUSH(a);
                 break;
             }
 
             case OP_OR: {
-                UInt256 b = POP(), a = POP();
+                UInt256 a = POP(), b = POP();
                 UInt256_or(&a, &b);
                 PUSH(a);
                 break;
             }
 
             case OP_XOR: {
-                UInt256 b = POP(), a = POP();
+                UInt256 a = POP(), b = POP();
                 UInt256_xor(&a, &b);
                 PUSH(a);
                 break;
@@ -284,24 +285,24 @@ bool *VM_call(VM *vm, Storage *storage, const Contract *contract, const size_t c
             }
 
             case OP_SHL: {
-                UInt256 value = POP();
                 uint32_t shift = (uint32_t)POP().elements[3];
+                UInt256 value = POP();
                 UInt256_shiftleft(&value, shift);
                 PUSH(value);
                 break;
             }
 
             case OP_SHR: {
-                UInt256 value = POP();
                 uint32_t shift = (uint32_t)POP().elements[3];
+                UInt256 value = POP();
                 UInt256_shiftright(&value, shift);
                 PUSH(value);
                 break;
             }
 
             case OP_SAR: {
-                UInt256 value = POP();
                 uint32_t shift = (uint32_t)POP().elements[3];
+                UInt256 value = POP();
 
                 UInt256_shiftright(&value, shift);
 
@@ -320,7 +321,7 @@ bool *VM_call(VM *vm, Storage *storage, const Contract *contract, const size_t c
             }
 
             case OP_SHA3: {
-                uint64_t size = POP().elements[3], offset = POP().elements[3];
+                uint64_t offset = POP().elements[3], size = POP().elements[3];
 
                 SHA3_CTX ctx;
                 Keccak_init(&ctx);
@@ -354,7 +355,7 @@ bool *VM_call(VM *vm, Storage *storage, const Contract *contract, const size_t c
             }
 
             case OP_CALLER: {
-                push(UInt256_from(caller_address));
+                PUSH(UInt256_from(caller_address));
                 break;
             }
 
@@ -375,7 +376,7 @@ bool *VM_call(VM *vm, Storage *storage, const Contract *contract, const size_t c
             }
 
             case OP_CALLDATACOPY: {
-                UInt256 size = POP(), offset = POP(), destOffset = POP();
+                UInt256 destOffset = POP(), offset = POP(), size = POP();
                 Memory_insert(&vm->memory, destOffset.elements[3], calldata, size.elements[3]);
                 break;
             }
@@ -386,7 +387,7 @@ bool *VM_call(VM *vm, Storage *storage, const Contract *contract, const size_t c
             }
 
             case OP_CODECOPY: {
-                UInt256 size = POP(), offset = POP(), destOffset = POP();
+                UInt256 destOffset = POP(), offset = POP(), size = POP();
                 Memory_insert(&vm->memory, destOffset.elements[3], contract->code, size.elements[3]);
                 break;
             }
@@ -403,7 +404,7 @@ bool *VM_call(VM *vm, Storage *storage, const Contract *contract, const size_t c
             }
 
             case OP_EXTCODECOPY: {
-                UInt256 size = POP(), offset = POP(), dest_offset = POP(), address = POP();
+                UInt256 address = POP(), dest_offset = POP(), offset = POP(), size = POP();
                 Memory_insert(&vm->memory, dest_offset.elements[3], vm->contracts[address.elements[3]], size.elements[3]);
                 break;
             }
@@ -484,8 +485,8 @@ bool *VM_call(VM *vm, Storage *storage, const Contract *contract, const size_t c
             }
 
             case OP_MSTORE: {
-                UInt256 value = POP();
                 uint64_t offset = POP().elements[3];
+                UInt256 value = POP();
                 
                 // Reverse and store in buffer for
                 // writing little-endian to memory
@@ -497,8 +498,8 @@ bool *VM_call(VM *vm, Storage *storage, const Contract *contract, const size_t c
             }
 
             case OP_MSTORE8: {
-                UInt256 value = POP();
                 uint64_t offset = POP().elements[3];
+                UInt256 value = POP();
                 Memory_insert(&vm->memory, offset, (uint8_t*)&value.elements[3], 8);
                 break;
             }
@@ -511,7 +512,7 @@ bool *VM_call(VM *vm, Storage *storage, const Contract *contract, const size_t c
             }
 
             case OP_SSTORE: {
-                UInt256 value = POP(), key = POP();
+                UInt256 key = POP(), value = POP();
                 Storage_insert(&storage, &key, &value);
                 break;
             }
@@ -525,7 +526,7 @@ bool *VM_call(VM *vm, Storage *storage, const Contract *contract, const size_t c
             }
 
             case OP_JUMPI: {
-                UInt256 b = POP(), counter = POP();
+                UInt256 counter = POP(), b = POP();
                 size_t new_pc = counter.elements[3];
                 if (!UInt256_equals(&b, &ZERO)) {
                     if (contract->code[new_pc] == OP_JUMPDEST) pc = new_pc;
@@ -593,7 +594,7 @@ bool *VM_call(VM *vm, Storage *storage, const Contract *contract, const size_t c
                 uint8_t *buffer = (uint8_t*)&value.elements[0] + 7; // Last byte in smallest word
 
                 for (int i = 0; i < length; i++)
-                    *(buffer - i) = consume_byte(vm);
+                    *(buffer - i) = CONSUME_BYTE();
                 
                 PUSH(value);
                 
@@ -660,10 +661,10 @@ bool *VM_call(VM *vm, Storage *storage, const Contract *contract, const size_t c
                 // TODO: Maybe handle contract addresses differently
                 // for CREATE/CREATE2 and actually use `salt`?
 
+                UInt256 _value = POP(), offset = POP(), size = POP();
+
                 // Pop unused `salt` parameter if CREATE2
                 if (opcode == OP_CREATE2) /* _salt = */ POP();
-
-                UInt256 size = POP(), _value = POP(), offset = POP();
 
                 size_t code_size = size.elements[3];
                 uint8_t *code = malloc(code_size);
@@ -687,12 +688,12 @@ bool *VM_call(VM *vm, Storage *storage, const Contract *contract, const size_t c
             case OP_CALLCODE:
             case OP_DELEGATECALL:
             case OP_STATICCALL: {
-                UInt256 ret_size = POP(), ret_offset = POP(), args_size = POP(), args_offset = POP(), _value;
+                UInt256 gas = POP(), address = POP(), _value;
                 
                 /* Only CALL and CALLCODE take a `value` parameter */
                 if (opcode == OP_CALL || opcode == OP_CALLCODE) _value = POP();
-
-                UInt256 address = POP(), gas = POP();
+            
+                UInt256 args_offset = POP(), args_size = POP(), ret_offset = POP(), ret_size = POP();
 
                 Contract *contract_to_call = vm->contracts[address.elements[3]];
                 VM contract_vm;
@@ -723,7 +724,7 @@ bool *VM_call(VM *vm, Storage *storage, const Contract *contract, const size_t c
             }
 
             case OP_RETURN: {
-                UInt256 size = POP(), offset = POP();
+                UInt256 offset = POP(), size = POP();
 
                 /* Allocate new buffer, fill with return data, then
                 set passed pointer parameters `return_buffer` to point to buffer
@@ -746,6 +747,7 @@ bool *VM_call(VM *vm, Storage *storage, const Contract *contract, const size_t c
             }
 
             case OP_REVERT: {
+                /* Revert changes by restoring original state */
                 Storage_move(&old_storage, storage);
                 Memory_move(&old_memory, &vm->memory);
 

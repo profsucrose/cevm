@@ -115,23 +115,23 @@ void Storage_copy(const Storage *src, Storage *dest) {
 
 inline static void free_entries(Entry **entries, size_t capacity) {
     for (size_t i = 0; i < capacity; i++) {
-        free(storage->entries[i]->key);
-        free(storage->entries[i]->value);
-        free(storage->entries[i]);
+        free(entries[i]->key);
+        free(entries[i]->value);
+        free(entries[i]);
     }
 
     free (entries);
 }
 
 void Storage_free(Storage *storage) {
-    free_entries(storage->entries);
+    free_entries(&storage->entries, storage->capacity);
 
     free(storage->entries);
     free(storage);
 }
 
 void Storage_move(Storage *from, Storage *to) {
-    free_entries(to->entries);
+    free_entries(&to->entries, to->capacity);
 
     to->length = from->length;
     to->capacity = from->capacity;

@@ -1,5 +1,6 @@
 #include <time.h>
 #include <assert.h>
+#include <keccak/keccak256.h>
 
 #include "storage.h"
 #include "uint256.h"
@@ -32,24 +33,24 @@ void test_UInt256_length() {
 }
 
 void test_UInt256_mult() {
-    char u256_out[255];
-    char double_out[255];
+    // char u256_out[255];
+    // char double_out[255];
 
     for (int i = 0; i < 255; i++) {
-        uint64_t a = (uint64_t)rand(); // less than 2^31
-        uint64_t b = (uint64_t)rand(); // less than 2^31
+        // uint64_t a = (uint64_t)rand(); // less than 2^31
+        // uint64_t b = (uint64_t)rand(); // less than 2^31
 
-        UInt256 a_u256 = UInt256_from(a);
-        UInt256 b_u256 = UInt256_from(b);
+        // UInt256 a_u256 = UInt256_from(a);
+        // UInt256 b_u256 = UInt256_from(b);
 
-        double c = (double)a * (double)b * (double)ULLONG_MAX;
+        // double c = (double)a * (double)b * (double)ULLONG_MAX;
 
-        UInt256_mult(&a_u256, &b_u256);
-        UInt256_mult(&a_u256, &LIMIT);
+        // UInt256_mult(&a_u256, &b_u256);
+        // UInt256_mult(&a_u256, &LIMIT);
 
-        UInt256_print_bits(&a_u256); printf("\n");
-        printf("%llu * %llu * %llu = %.0f\n", a, b, ULLONG_MAX, c);
-        UInt256_print(&a_u256); printf(" = %.0f\n", c);
+        // UInt256_print_bits(&a_u256); printf("\n");
+        // printf("%llu * %llu * %llu = %.0f\n", a, b, ULLONG_MAX, c);
+        // UInt256_print(&a_u256); printf(" = %.0f\n", c);
         
         // UInt256_print_to_buffer(&out);
         // sprintf(double_out, "%f\0", c);
@@ -85,6 +86,11 @@ void test_UInt256_div() {
 int main() {
     srand(time(NULL));
 
-    test_UInt256_shiftleft();
-    // test_UInt256_length();
+    SHA3_CTX ctx;
+    Keccak_init(&ctx);
+
+    uint8_t buffer[32];
+    Keccak_final(&ctx, &buffer);
+
+    __print_bits(32, &buffer);
 }
