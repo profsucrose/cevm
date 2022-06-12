@@ -2,95 +2,69 @@
 #include <assert.h>
 #include <keccak/keccak256.h>
 
-#include "storage.h"
-#include "uint256.h"
-
-static UInt256 LIMIT = (UInt256){ { 0, 0, 0, ULLONG_MAX } };
-
-/* TODO: Move to check */
-
-void test_UInt256_shiftleft() {
-    for (int i = 0; i < 255; i++) {
-        UInt256 a = ONE;
-        UInt256_shiftleft(&a, i);
-        UInt256_print_bits(&a); printf("\n");
-    }
-}
-
-void test_UInt256_length() {
-    assert(UInt256_length(&ZERO) == 0);
-
-    for (int i = 1; i < 255; i++) {
-        UInt256 a = ONE;
-        UInt256_print_bits(&a); printf("\n");
-        UInt256_shiftleft(&a, (uint32_t)i);
-        UInt256_print_bits(&a); printf("\n");
-
-        int length = UInt256_length(&a);
-        printf("%d == %d\n", length, i + 1);
-        assert(length == (i + 1));
-    }
-}
-
-void test_UInt256_mult() {
-    // char u256_out[255];
-    // char double_out[255];
-
-    for (int i = 0; i < 255; i++) {
-        // uint64_t a = (uint64_t)rand(); // less than 2^31
-        // uint64_t b = (uint64_t)rand(); // less than 2^31
-
-        // UInt256 a_u256 = UInt256_from(a);
-        // UInt256 b_u256 = UInt256_from(b);
-
-        // double c = (double)a * (double)b * (double)ULLONG_MAX;
-
-        // UInt256_mult(&a_u256, &b_u256);
-        // UInt256_mult(&a_u256, &LIMIT);
-
-        // UInt256_print_bits(&a_u256); printf("\n");
-        // printf("%llu * %llu * %llu = %.0f\n", a, b, ULLONG_MAX, c);
-        // UInt256_print(&a_u256); printf(" = %.0f\n", c);
-        
-        // UInt256_print_to_buffer(&out);
-        // sprintf(double_out, "%f\0", c);
-        
-    }
-}
-
-void test_UInt256_div() {
-    char u256_out[255];
-    char double_out[255];
-
-    for (int i = 0; i < 255; i++) {
-        uint64_t a = (uint64_t)rand(); // less than 2^31
-        uint64_t b = (uint64_t)rand(); // less than 2^31
-
-        // UInt256 division
-        UInt256 a_u256 = UInt256_from(a);
-        UInt256 b_u256 = UInt256_from(b);
-        UInt256_add(&a_u256, &LIMIT);
-        UInt256_add(&a_u256, &LIMIT);
-        // UInt256_div(&a_u256, &b_u256);
-
-        // Native division
-        double c = ((double)a + (double)ULLONG_MAX + (double)ULLONG_MAX);
-
-        printf("(%llu + %llu + %llu) = %0.f, u256: ", a, ULLONG_MAX, ULLONG_MAX, c);
-        // UInt256_print(&a_u256);
-        UInt256_print_bits(&a_u256);
-        printf("\n");
-    }
-}
+#include "vm.h"
 
 int main() {
     srand(time(NULL));
 
-    SHA3_CTX ctx;
-    Keccak_init(&ctx);
+    VM vm;
+    VM_init(&vm);
 
-    uint8_t buffer[32];
-    Keccak_final(&ctx, &buffer);
+    Logs logs;
+    Logs_init(&logs);
 
-    __print_bits(32, &buffer);
+    uint8_t code[] = { 
+        OP_PUSH1, 102, // [ value ]
+        OP_PUSH1, 0, // [ value, offset ]
+        OP_MSTORE8,     // []
+        OP_PUSH1, 1, // [ size ]
+        OP_PUSH1, 0, // [ size, offset ]
+        OP_LOG0,        // []
+        OP_STOP,
+    };
+
+    Context context = (Context){
+        .code = code,
+        .code_size = sizeof(code),
+
+        .address = 0,
+
+        .sender = 0,
+
+        .stack_top = context.stack,
+
+        .memory = (Memory*)malloc(sizeof(Memory)),
+
+        .storage = (Storage*)malloc(sizeof(Storage)),
+
+        .calldata = NULL,
+        .calldata_size = 0,
+
+        .return_data = NULL,
+        .return_data_size = 0,
+    };
+
+    Memory_init(context.memory);
+    Storage_init(context.storage);
+
+    VM_call(&vm, &context, &logs);
+
+    printf("Logs length: %zu\n", logs.length);
+
+    for (size_t i = 0; i < logs.length; i++) {
+        Log *log = logs.elements[i];
+        printf("LOG%d:\n", (int)log->topics_length);
+
+        printf("  topics:\n");
+
+        for (size_t j = 0; j < log->topics_length; j++) {
+            printf("    "); UInt256_print(&log->topics[j]); printf("\n");
+        }
+
+        printf("  data: (%d)\n", (int)log->size);
+
+        for (size_t j = 0; j < log->size; j++) {
+            printf("    %d\n", (int)log->data[j]);
+        }
+    }
 }

@@ -1,46 +1,41 @@
 #include "vm.h"
 
 void VM_init(VM *vm) {
-    // Contracts
+    /* Contracts */
     vm->contracts_length = 0;
-
-    // Memory
-    Memory_init(&vm->memory);
 }
 
-static size_t add_contract(VM *vm, const VM *contract) {
+static size_t add_contract(VM *vm, Contract *contract) {
     vm->contracts[vm->contracts_length++] = contract;
     return vm->contracts_length - 1;
 }
 
-// -2^255 in 2's compliment is 1
+/* -2^255 in 2's compliment is 1 */
 static UInt256 MINUS_UINT256_LIMIT = (UInt256){ { 0, 0, 0, 1 } };
 static UInt256 MINUS_ONE = (UInt256){ { ULLONG_MAX, ULLONG_MAX, ULLONG_MAX, ULLONG_MAX } };
 
-bool *VM_call(VM *vm, Storage *storage, const Contract *contract, const size_t caller_address, const uint8_t *calldata, const size_t calldata_size, uint8_t **out_return_buffer, size_t *out_return_buffer_size) {
+bool VM_call(VM *vm, Context *ctx, Logs *out_logs) {
+    /* Copy Storage and Memory for reverting state */
     Storage old_storage;
-    Storage_copy(storage, &old_storage);
+    Storage_copy(ctx->storage, &old_storage);
 
     Memory old_memory;
-    Memory_copy(&vm->memory, &old_memory);
-
-    UInt256 stack[STACK_MAX];
-    UInt256 *stack_top = stack;
+    Memory_copy(ctx->memory, &old_memory);
 
     size_t pc = 0;
 
-    #define CONSUME_BYTE() (contract->code[pc++])
-
-    // Copy UInt256 for stack operations
-    #define POP() (*--stack_top)
-    #define PUSH(value) *stack_top++ = value
+    /* Copy UInt256 for stack operations */
+    #define POP() (*(--ctx->stack_top))
+    #define PUSH(value) *(ctx->stack_top++) = value
 
     OpCode opcode;
 
     for (;;) {
-        switch (opcode = CONSUME_BYTE()) {
+        opcode = ctx->code[pc++];
+        printf("Processing %d\n", opcode);
+        switch (opcode) {
             case OP_STOP: {
-                break;
+                return true; /* Successfully terminate */
             }
 
             case OP_ADD: {
@@ -80,15 +75,15 @@ bool *VM_call(VM *vm, Storage *storage, const Contract *contract, const size_t c
                         UInt256_equals(&b, &MINUS_ONE))
                     a = MINUS_UINT256_LIMIT;
                 else {
-                    // Get absolute value of division and store to op1
+                    /* Get absolute value of division and store to op1 */
                     UInt256_div(&a, &b);
 
                     bool a_negative = UInt256_get(&a, 0);
                     bool b_negative = UInt256_get(&b, 0);
 
                     if (a_negative + b_negative == 1) {
-                        // If one op is negative and other is positive,
-                        // then negate division
+                        /* If one op is negative and other is positive, */
+                        /* then negate division */
                         UInt256_compliment(&a);
                     }
                 }
@@ -118,7 +113,7 @@ bool *VM_call(VM *vm, Storage *storage, const Contract *contract, const size_t c
 
                     bool a_negative = UInt256_get(&a, 0);
 
-                    // If a is negative, then negate modulo
+                    /* If a is negative, then negate modulo */
                     if (a_negative) UInt256_compliment(&a);
                 }
 
@@ -188,7 +183,7 @@ bool *VM_call(VM *vm, Storage *storage, const Contract *contract, const size_t c
             }
 
             case OP_SLT: {
-                // Assert ops are in 2's compliment
+                /* Assert ops are in 2's compliment */
                 UInt256 a = POP(), b = POP();
 
                 UInt256 a_abs = a; UInt256_abs(&a_abs);
@@ -199,10 +194,9 @@ bool *VM_call(VM *vm, Storage *storage, const Contract *contract, const size_t c
                 bool a_negative = UInt256_get(&a, 0);
                 bool b_negative = UInt256_get(&a, 0);
 
-                // TODO: Shorten logic
-                bool lt = (!a_negative && !b_negative && abs_lt) ||    // if a > 0 and b > 0, then true if |a| < |b|
-                    (a_negative && !b_negative) ||                     // if a < 0 and b > 0, then true
-                    (a_negative && b_negative && !abs_lt);             // if a < 0 and b < 0, then true if |a| > |b|
+                bool lt = (!a_negative && !b_negative && abs_lt) ||    /* if a > 0 and b > 0, then true if |a| < |b| */
+                    (a_negative && !b_negative) ||                     /* if a < 0 and b > 0, then true              */
+                    (a_negative && b_negative && !abs_lt);             /* if a < 0 and b < 0, then true if |a| > |b| */
 
                 PUSH(lt ? ONE : ZERO);
 
@@ -210,7 +204,7 @@ bool *VM_call(VM *vm, Storage *storage, const Contract *contract, const size_t c
             }
 
             case OP_SGT: {
-                // Assert ops are in 2's compliment
+                /* Assert ops are in 2's compliment */
                 UInt256 a = POP(), b = POP();
 
                 UInt256 a_abs = a; UInt256_abs(&a_abs);
@@ -221,9 +215,9 @@ bool *VM_call(VM *vm, Storage *storage, const Contract *contract, const size_t c
                 bool a_negative = UInt256_get(&a, 0);
                 bool b_negative = UInt256_get(&a, 0);
 
-                bool gt = (!a_negative && !b_negative && abs_gt) ||    // if a > 0 and b > 0, then |a| > |b|
-                    (!a_negative && b_negative) ||                     // if a > 0 and b < 0, then true
-                    (a_negative && b_negative && !abs_gt);             // if a < 0 and b < 0, then |a| < |b|
+                bool gt = (!a_negative && !b_negative && abs_gt) ||    /* if a > 0 and b > 0, then |a| > |b| */
+                    (!a_negative && b_negative) ||                     /* if a > 0 and b < 0, then true      */
+                    (a_negative && b_negative && !abs_gt);             /* if a < 0 and b < 0, then |a| < |b| */
 
                 PUSH(gt ? ONE : ZERO);
 
@@ -273,12 +267,16 @@ bool *VM_call(VM *vm, Storage *storage, const Contract *contract, const size_t c
             }
 
             case OP_BYTE: {
-                UInt256 x = POP();
-                int i = POP().elements[0];
+                UInt256 _x = POP();
+                uint64_t x = TO_UINT64(_x);
 
-                // Index starting from most significant byte moving backwards
-                // if index is in range
-                UInt256 y = i > 31 ? ZERO : UInt256_from((uint64_t)*(((uint8_t*)&x.elements[3]) - i));
+                uint64_t i = POP().elements[0];
+
+                /*
+                 * Index starting from most significant byte 
+                 * moving backwards if index is in range
+                 */
+                UInt256 y = i > 31 ? ZERO : UInt256_from((uint64_t)*(((uint8_t*)&x) - i));
 
                 PUSH(y);
                 break;
@@ -323,12 +321,12 @@ bool *VM_call(VM *vm, Storage *storage, const Contract *contract, const size_t c
             case OP_SHA3: {
                 uint64_t offset = POP().elements[3], size = POP().elements[3];
 
-                SHA3_CTX ctx;
-                Keccak_init(&ctx);
-                Keccak_update(&ctx, Memory_offset(&vm->memory, offset), size);
+                SHA3_CTX sha_ctx;
+                Keccak_init(&sha_ctx);
+                Keccak_update(&sha_ctx, Memory_offset(ctx->memory, offset), size);
 
                 uint64_t buffer[4];
-                Keccak_final(&ctx, (uint8_t*)&buffer);
+                Keccak_final(&sha_ctx, (uint8_t*)&buffer);
 
                 /* TODO: buffer may have to be reversed?
                 (either byte or bit wise) */
@@ -355,7 +353,7 @@ bool *VM_call(VM *vm, Storage *storage, const Contract *contract, const size_t c
             }
 
             case OP_CALLER: {
-                PUSH(UInt256_from(caller_address));
+                PUSH(UInt256_from(ctx->sender));
                 break;
             }
 
@@ -366,29 +364,29 @@ bool *VM_call(VM *vm, Storage *storage, const Contract *contract, const size_t c
 
             case OP_CALLDATALOAD: {
                 UInt256 i = POP();
-                PUSH(UInt256_from(*(uint64_t*)&calldata[i.elements[3]]));
+                PUSH(UInt256_from(*(uint64_t*)&ctx->calldata[i.elements[3]]));
                 break;
             }
 
             case OP_CALLDATASIZE: {
-                PUSH(UInt256_from(calldata_size));
+                PUSH(UInt256_from(ctx->calldata_size));
                 break;
             }
 
             case OP_CALLDATACOPY: {
-                UInt256 destOffset = POP(), offset = POP(), size = POP();
-                Memory_insert(&vm->memory, destOffset.elements[3], calldata, size.elements[3]);
+                size_t dest_offset = TO_SIZE_T(POP()), offset = TO_SIZE_T(POP()), size = TO_SIZE_T(POP());
+                Memory_insert(ctx->memory, dest_offset, ctx->calldata + offset, size);
                 break;
             }
 
             case OP_CODESIZE: {
-                PUSH(UInt256_from(contract->code_size));
+                PUSH(UInt256_from(ctx->code_size));
                 break;
             }
 
             case OP_CODECOPY: {
-                UInt256 destOffset = POP(), offset = POP(), size = POP();
-                Memory_insert(&vm->memory, destOffset.elements[3], contract->code, size.elements[3]);
+                size_t dest_offset = TO_SIZE_T(POP()), offset = TO_SIZE_T(POP()), size = TO_SIZE_T(POP());
+                Memory_insert(ctx->memory, dest_offset, ctx->code + offset, size);
                 break;
             }
 
@@ -404,8 +402,8 @@ bool *VM_call(VM *vm, Storage *storage, const Contract *contract, const size_t c
             }
 
             case OP_EXTCODECOPY: {
-                UInt256 address = POP(), dest_offset = POP(), offset = POP(), size = POP();
-                Memory_insert(&vm->memory, dest_offset.elements[3], vm->contracts[address.elements[3]], size.elements[3]);
+                size_t address = TO_SIZE_T(POP()), dest_offset = TO_SIZE_T(POP()), offset = TO_SIZE_T(POP()), size = TO_SIZE_T(POP());
+                Memory_insert(ctx->memory, dest_offset, vm->contracts[address]->code + offset, size);
                 break;
             }
 
@@ -470,7 +468,7 @@ bool *VM_call(VM *vm, Storage *storage, const Contract *contract, const size_t c
             }
 
             case OP_POP: {
-                POP(); // Throw away value
+                POP(); /* Throw away value */
                 break;
             }
 
@@ -478,7 +476,7 @@ bool *VM_call(VM *vm, Storage *storage, const Contract *contract, const size_t c
 
             case OP_MLOAD: {
                 uint64_t offset = POP().elements[3];
-                uint64_t *mem = (uint64_t*)Memory_offset(&vm->memory, offset);
+                uint64_t *mem = (uint64_t*)Memory_offset(ctx->memory, offset);
                 UInt256 value = (UInt256){ { mem[3], mem[2], mem[1], mem[0] } };
                 PUSH(value);
                 break;
@@ -488,39 +486,46 @@ bool *VM_call(VM *vm, Storage *storage, const Contract *contract, const size_t c
                 uint64_t offset = POP().elements[3];
                 UInt256 value = POP();
                 
-                // Reverse and store in buffer for
-                // writing little-endian to memory
+                /* Reverse and store in buffer for
+                writing little-endian to memory */
                 uint64_t buffer[] = { value.elements[3], value.elements[2], value.elements[1], value.elements[0] };
 
-                Memory_insert(&vm->memory, offset, (uint8_t*)&buffer[0], 32);
+                Memory_insert(ctx->memory, offset, (uint8_t*)&buffer[0], 32);
 
                 break;
             }
 
             case OP_MSTORE8: {
-                uint64_t offset = POP().elements[3];
-                UInt256 value = POP();
-                Memory_insert(&vm->memory, offset, (uint8_t*)&value.elements[3], 8);
+                UInt256 _offset = POP(), _value = POP();
+                size_t offset = TO_SIZE_T(_offset), value = TO_SIZE_T(_value);
+                uint8_t buffer[] = { (uint8_t)value };
+                Memory_insert(ctx->memory, offset, buffer, 1);
+
+                printf("value u256: "); __PRINT(&_value); printf("\n");
+                printf("offset u256: "); __PRINT(&_offset); printf("\n");
+                printf("offset: %d; value: %d\n", (int)offset, (int)value);
+                printf("value at mem 0: %d\n", (int)ctx->memory->array[offset]);
+
                 break;
             }
 
             case OP_SLOAD: {
                 UInt256 key = POP(), value;
-                UInt256_copy(Storage_get(&storage, &key), &value);
+                UInt256_copy(Storage_get(ctx->storage, &key), &value);
                 PUSH(value);
                 break;
             }
 
             case OP_SSTORE: {
                 UInt256 key = POP(), value = POP();
-                Storage_insert(&storage, &key, &value);
+                Storage_insert(ctx->storage, &key, &value);
                 break;
             }
 
             case OP_JUMP: {
                 UInt256 counter = POP();
                 size_t new_pc = (size_t)counter.elements[3];
-                if (contract->code[new_pc] == OP_JUMPDEST) pc = new_pc;
+                if (ctx->code[new_pc] == OP_JUMPDEST) pc = new_pc;
                 else error("Expected JUMP instruction to jump to JUMPDEST, got %zu\n", pc);
                 break;
             }
@@ -529,7 +534,7 @@ bool *VM_call(VM *vm, Storage *storage, const Contract *contract, const size_t c
                 UInt256 counter = POP(), b = POP();
                 size_t new_pc = counter.elements[3];
                 if (!UInt256_equals(&b, &ZERO)) {
-                    if (contract->code[new_pc] == OP_JUMPDEST) pc = new_pc;
+                    if (ctx->code[new_pc] == OP_JUMPDEST) pc = new_pc;
                     else error("Expected JUMPI instruction to jump to JUMPDEST, got %zu\n", pc);
                 }
                 break;
@@ -541,8 +546,7 @@ bool *VM_call(VM *vm, Storage *storage, const Contract *contract, const size_t c
             }
 
             case OP_MSIZE: {
-                // TODO: Not sure about starting memory capacity/expansion?
-                PUSH(UInt256_from(vm->memory.capacity));
+                PUSH(UInt256_from(ctx->memory->capacity));
                 break;
             }
 
@@ -552,7 +556,7 @@ bool *VM_call(VM *vm, Storage *storage, const Contract *contract, const size_t c
             }
 
             case OP_JUMPDEST: {
-                // Do nothing
+                /* Do nothing */
                 break;
             }
 
@@ -588,13 +592,13 @@ bool *VM_call(VM *vm, Storage *storage, const Contract *contract, const size_t c
             case OP_PUSH30:
             case OP_PUSH31:
             case OP_PUSH32: {
-                uint64_t length = opcode - OP_PUSH1 + 1;
+                size_t length = opcode - OP_PUSH1 + 1;
 
                 UInt256 value = ZERO;
-                uint8_t *buffer = (uint8_t*)&value.elements[0] + 7; // Last byte in smallest word
+                uint8_t *buffer = ((uint8_t*)&value.elements[3]); /* Last byte in smallest word */
 
-                for (int i = 0; i < length; i++)
-                    *(buffer - i) = CONSUME_BYTE();
+                for (size_t i = 0; i < length; i++)
+                    *(buffer - i) = ctx->code[pc++];
                 
                 PUSH(value);
                 
@@ -619,8 +623,8 @@ bool *VM_call(VM *vm, Storage *storage, const Contract *contract, const size_t c
             case OP_DUP16: {
                 uint64_t stack_offset = opcode - OP_DUP1;
                 for (int i = stack_offset + 1; i > 0; i--)
-                    stack[i] = stack[i - 1];
-                stack[0] = stack[stack_offset + 1];
+                    ctx->stack[i] = ctx->stack[i - 1];
+                ctx->stack[0] = ctx->stack[stack_offset + 1];
                 break;
             }
 
@@ -641,9 +645,9 @@ bool *VM_call(VM *vm, Storage *storage, const Contract *contract, const size_t c
             case OP_SWAP15:
             case OP_SWAP16: {
                 uint64_t swap_index = opcode - OP_SWAP1 + 1;
-                UInt256 tmp = stack[0];
-                stack[0] = stack[swap_index];
-                stack[swap_index] = tmp;
+                UInt256 tmp = ctx->stack[0];
+                ctx->stack[0] = ctx->stack[swap_index];
+                ctx->stack[swap_index] = tmp;
                 break;
             }
 
@@ -652,34 +656,54 @@ bool *VM_call(VM *vm, Storage *storage, const Contract *contract, const size_t c
             case OP_LOG2:
             case OP_LOG3:
             case OP_LOG4: {
-                error("Unhandled opcode LOG%d\n", (int)(opcode - OP_LOG0));
+                size_t offset = TO_SIZE_T(POP()), size = TO_SIZE_T(POP());
+
+                size_t topics_length = (size_t)(opcode - OP_LOG0);
+                UInt256 *topics = malloc(sizeof(UInt256) * topics_length);
+
+                for (size_t i = 0; i < topics_length; i++)
+                    topics[i] = POP();
+                
+                uint8_t *data = malloc(size);
+
+                for (size_t i = 0; i < size; i++)
+                    data[i] = ctx->memory->array[offset + i];
+                
+                Log *log = malloc(sizeof(Log));
+
+                log->data = data;
+                log->size = size;
+
+                log->topics_length = topics_length;
+                log->topics = topics;
+
+                Logs_push(out_logs, log);
+
                 break;
             }
 
             case OP_CREATE:
             case OP_CREATE2: {
-                // TODO: Maybe handle contract addresses differently
-                // for CREATE/CREATE2 and actually use `salt`?
+                /* TODO: Add predetermined addresses for CREATE2 */
 
-                UInt256 _value = POP(), offset = POP(), size = POP();
+                size_t _value = TO_SIZE_T(POP()), offset = TO_SIZE_T(POP()), size = TO_SIZE_T(POP());
 
-                // Pop unused `salt` parameter if CREATE2
+                /* Pop unused `salt` parameter if CREATE2 */
                 if (opcode == OP_CREATE2) /* _salt = */ POP();
 
-                size_t code_size = size.elements[3];
+                size_t code_size = size;
                 uint8_t *code = malloc(code_size);
 
                 for (size_t i = 0; i < code_size; i++)
-                    code[i] = vm->memory.array[offset.elements[3] + i];
+                    code[i] = ctx->memory->array[offset + i];
 
                 Contract *contract = (Contract*)malloc(sizeof(Contract));
                 
                 contract->code = code;
                 contract->code_size = code_size;
-                contract->address = add_contract(&vm, contract);
+                contract->address = add_contract(vm, contract);
 
-                // Add contract to local buffer and push index
-                PUSH(UInt256_from(contract->address));
+                PUSH(UInt256_from(add_contract(vm, contract)));
 
                 break;
             }
@@ -688,68 +712,77 @@ bool *VM_call(VM *vm, Storage *storage, const Contract *contract, const size_t c
             case OP_CALLCODE:
             case OP_DELEGATECALL:
             case OP_STATICCALL: {
-                UInt256 gas = POP(), address = POP(), _value;
+                UInt256 _gas = POP(), _value; // TODO: Maybe implement some form of gas accounting?
+                size_t address = TO_SIZE_T(POP());
                 
                 /* Only CALL and CALLCODE take a `value` parameter */
                 if (opcode == OP_CALL || opcode == OP_CALLCODE) _value = POP();
             
-                UInt256 args_offset = POP(), args_size = POP(), ret_offset = POP(), ret_size = POP();
+                size_t args_offset = TO_SIZE_T(POP()), args_size = TO_SIZE_T(POP()), return_offset = TO_SIZE_T(POP()), return_size = TO_SIZE_T(POP());
 
-                Contract *contract_to_call = vm->contracts[address.elements[3]];
-                VM contract_vm;
-                VM_init(&contract_vm);
+                Contract *contract = vm->contracts[address];
 
-                uint8_t *return_buffer = (uint8_t*)malloc(ret_size.elements[3]);
-                size_t return_buffer_size;
+                Context subcontext;
 
-                size_t subcontext_sender;
-                Storage *subcontext_storage;
+                /*
+                 * Populate subcontext, start with shared attributes 
+                 * (code, stack, calldata, return data, address of contract to call)
+                 */
+                subcontext.code = contract->code;
+                subcontext.code_size = contract->code_size;
+
+                subcontext.stack_top = subcontext.stack;
+
+                subcontext.calldata = &ctx->memory->array[args_offset];
+                subcontext.calldata_size = args_size;
+
+                subcontext.return_data = (uint8_t*)malloc(return_size);
+                subcontext.return_data_size = return_size;
+
+                subcontext.address = address;
 
                 if (opcode == OP_CALL) {
-                    subcontext_storage = contract->address;
-                    Storage_init(&subcontext_storage);
-                } else if (opcode == OP_CALLCODE) {
-                    subcontext_sender = caller_address;
-                    subcontext_storage = storage;
+                    subcontext.sender = ctx->address;
+                    Memory_init(subcontext.memory);
+                    subcontext.storage = &contract->storage;
+                } else /* OP_CALLCODE || OP_DELEGATECALL */ {
+                    subcontext.sender = ctx->sender; /* Sender carries over from current ctx */
+                    subcontext.storage = ctx->storage;
                 }
 
-                PUSH(UInt256_from(VM_call(&contract_vm, subcontext_storage, contract_to_call, subcontext_sender, vm->memory.array + args_offset.elements[3], args_size.elements[3], &return_buffer, &return_buffer_size)));
-
-                // TODO: Figure out return data parameter vs. return data size returned by subcontext?
+                bool status = VM_call(vm, &subcontext, out_logs);
+                PUSH(UInt256_from(status));
 
                 /* Insert return data into Memory */
-                Memory_insert(&vm->memory, args_offset.elements[3], return_buffer, ret_size.elements[3]);
+                Memory_insert(ctx->memory, return_offset, subcontext.return_data, return_size);
+
+                free(subcontext.return_data); /* No longer need return data buffer */
 
                 break;
             }
 
             case OP_RETURN: {
-                UInt256 offset = POP(), size = POP();
+                size_t offset = TO_SIZE_T(POP()), size = TO_SIZE_T(POP());
 
-                /* Allocate new buffer, fill with return data, then
-                set passed pointer parameters `return_buffer` to point to buffer
-                and `return_buffer_size` to point to size of buffer. */
+                uint8_t* return_data = malloc(size);
 
-                size_t return_buffer_size = size.elements[3];
-                uint8_t* return_buffer = malloc(return_buffer_size);
-
-                for (size_t i = 0; i < size.elements[3]; i++)
-                    return_buffer[i] = vm->memory.array[offset.elements[3] + i];
+                for (size_t i = 0; i < size; i++)
+                    return_data[i] = ctx->memory->array[offset + i];
                 
-                *out_return_buffer = return_buffer;
-                *out_return_buffer_size = return_buffer_size;
+                ctx->return_data = return_data;
+                ctx->return_data_size = size;
 
                 /* Don't need to store state for case of reversion */
                 Storage_free(&old_storage);
                 Memory_free(&old_memory);
 
-                return true; // Success
+                return true; /* Success */
             }
 
             case OP_REVERT: {
                 /* Revert changes by restoring original state */
-                Storage_move(&old_storage, storage);
-                Memory_move(&old_memory, &vm->memory);
+                Storage_move(&old_storage, ctx->storage);
+                Memory_move(&old_memory, ctx->memory);
 
                 return false;
             }

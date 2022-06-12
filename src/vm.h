@@ -1,9 +1,10 @@
-#ifndef EVM_H
-#define EVM_H
+#ifndef VM_H
+#define VM_H
 
 #include "common.h"
 #include "storage.h"
 #include "memory.h"
+#include "logs.h"
 
 typedef enum {
     OP_STOP = 0x00,
@@ -151,7 +152,10 @@ typedef enum {
     OP_SELFDESTRUCT = 0xFF
 } OpCode;
 
-// Stack has depth of 1024 items
+/* 
+ * For simplicity, store Stack, Contracts, Calldata,
+ * and Return Buffer as static arrays
+ */
 #define STACK_MAX 1024
 #define CONTRACT_MAX 1024
 #define CALLDATA_MAX 1024
@@ -160,16 +164,45 @@ typedef enum {
 typedef struct {
     uint8_t *code;
     size_t code_size;
+
     size_t address;
+
+    Storage storage;
 } Contract;
 
 typedef struct {
+    uint8_t *code;
+    size_t code_size;
+
+    size_t address;
+
+    /* Index of calling Contract in Contract array */
+    size_t sender;
+
+    UInt256 stack[STACK_MAX];
+    UInt256 *stack_top;
+
+    Memory *memory;
+
+    Storage *storage;
+
+    uint8_t *calldata;
+    size_t calldata_size;
+
+    uint8_t *return_data;
+    size_t return_data_size;
+} Context;
+
+typedef struct {
+    /*
+     * For purposes of simplified EVM, (only need to execute one root contract
+     * at a time) represent contracts as index-addressable stack
+     */
     Contract *contracts[CONTRACT_MAX];
     size_t contracts_length;
-    Memory memory;
 } VM;
 
 void VM_init(VM *vm);
-bool *VM_call(VM *vm, Storage *storage, const Contract *contract, const size_t caller_address, const uint8_t *calldata, const size_t calldata_size, uint8_t **out_return_buffer, size_t *out_return_buffer_size);
+bool VM_call(VM *vm, Context *ctx, Logs *out_logs);
 
 #endif

@@ -108,30 +108,30 @@ void Storage_copy(const Storage *src, Storage *dest) {
 
     for (size_t i = 0; i < src->length; i++) {
         dest->entries[i] = (Entry*)malloc(sizeof(Entry));
-        UInt256_copy(&src->entries[i]->key, &dest->entries[i]->key);
-        UInt256_copy(&src->entries[i]->value, &dest->entries[i]->value);
+        UInt256_copy(src->entries[i]->key, dest->entries[i]->key);
+        UInt256_copy(src->entries[i]->value, dest->entries[i]->value);
     }
 }
 
-inline static void free_entries(Entry **entries, size_t capacity) {
+static void free_entries(Entry **entries, size_t capacity) {
     for (size_t i = 0; i < capacity; i++) {
         free(entries[i]->key);
         free(entries[i]->value);
         free(entries[i]);
     }
 
-    free (entries);
+    free(entries);
 }
 
 void Storage_free(Storage *storage) {
-    free_entries(&storage->entries, storage->capacity);
+    free_entries(storage->entries, storage->capacity);
 
     free(storage->entries);
     free(storage);
 }
 
 void Storage_move(Storage *from, Storage *to) {
-    free_entries(&to->entries, to->capacity);
+    free_entries(to->entries, to->capacity);
 
     to->length = from->length;
     to->capacity = from->capacity;

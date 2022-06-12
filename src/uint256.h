@@ -15,6 +15,9 @@ typedef struct {
         printf("%llu ", (integer)->elements[i]); \
 }
 
+#define TO_UINT64(integer) ((integer).elements[3])
+#define TO_SIZE_T(integer) ((size_t)((integer).elements[3]))
+
 extern UInt256 ZERO, ONE;
 
 // Init
