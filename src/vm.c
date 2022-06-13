@@ -32,7 +32,7 @@ bool VM_call(VM *vm, Context *ctx, Logs *out_logs) {
 
     for (;;) {
         opcode = ctx->code[pc++];
-        printf("Processing %d\n", opcode);
+        printf("Processing %s\n", OPCODE_TO_NAME[opcode]);
         switch (opcode) {
             case OP_STOP: {
                 return true; /* Successfully terminate */
@@ -338,7 +338,7 @@ bool VM_call(VM *vm, Context *ctx, Logs *out_logs) {
             }
 
             case OP_ADDRESS: {
-                error("Unhandled opcode ADDRESS\n");
+                PUSH(UInt256_from(ctx->address));
                 break;
             }
 
@@ -358,7 +358,7 @@ bool VM_call(VM *vm, Context *ctx, Logs *out_logs) {
             }
 
             case OP_CALLVALUE: {
-                error("Unhandled opcode CALLVALUE\n");
+                PUSH(ctx->value);
                 break;
             }
 
@@ -408,12 +408,13 @@ bool VM_call(VM *vm, Context *ctx, Logs *out_logs) {
             }
 
             case OP_RETURNDATASIZE: {
-                error("Unhandled opcode RETURNDATASIZE\n");
+                PUSH(UInt256_from(ctx->return_data_size));
                 break;
             }
 
             case OP_RETURNDATACOPY: {
-                error("Unhandled opcode RETURNDATACOPY\n");
+                size_t dest_offset = TO_SIZE_T(POP()), offset = TO_SIZE_T(POP()), size = TO_SIZE_T(POP());
+                Memory_insert(ctx->memory, dest_offset, ctx->return_data + offset, size);
                 break;
             }
 
@@ -686,7 +687,8 @@ bool VM_call(VM *vm, Context *ctx, Logs *out_logs) {
             case OP_CREATE2: {
                 /* TODO: Add predetermined addresses for CREATE2 */
 
-                size_t _value = TO_SIZE_T(POP()), offset = TO_SIZE_T(POP()), size = TO_SIZE_T(POP());
+                POP(); // Throw away value argument (TODO: Balances?)
+                size_t offset = TO_SIZE_T(POP()), size = TO_SIZE_T(POP());
 
                 /* Pop unused `salt` parameter if CREATE2 */
                 if (opcode == OP_CREATE2) /* _salt = */ POP();
@@ -712,11 +714,11 @@ bool VM_call(VM *vm, Context *ctx, Logs *out_logs) {
             case OP_CALLCODE:
             case OP_DELEGATECALL:
             case OP_STATICCALL: {
-                UInt256 _gas = POP(), _value; // TODO: Maybe implement some form of gas accounting?
+                UInt256 _gas = POP(), value; // TODO: Maybe implement some form of gas accounting?
                 size_t address = TO_SIZE_T(POP());
                 
                 /* Only CALL and CALLCODE take a `value` parameter */
-                if (opcode == OP_CALL || opcode == OP_CALLCODE) _value = POP();
+                if (opcode == OP_CALL || opcode == OP_CALLCODE) value = POP();
             
                 size_t args_offset = TO_SIZE_T(POP()), args_size = TO_SIZE_T(POP()), return_offset = TO_SIZE_T(POP()), return_size = TO_SIZE_T(POP());
 
@@ -740,6 +742,8 @@ bool VM_call(VM *vm, Context *ctx, Logs *out_logs) {
                 subcontext.return_data_size = return_size;
 
                 subcontext.address = address;
+
+                subcontext.value = opcode == OP_DELEGATECALL ? ctx->value : value;
 
                 if (opcode == OP_CALL) {
                     subcontext.sender = ctx->address;

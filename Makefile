@@ -11,6 +11,8 @@ OBJECTS = $(patsubst $(SRC)/%.c, $(OBJ)/%.o, $(SOURCES))
 
 BUILD_DIRS = $(OBJ) $(patsubst $(SRC)/%, $(OBJ)/%, $(wildcard $(SRC)/$(VENDOR)/*))
 
+.PHONY: clean test
+
 $(TARGET): $(OBJECTS)
 	$(CC) $(CFLAGS) $^ -o $@ 
 
@@ -20,6 +22,8 @@ $(OBJ)/%.o: $(SRC)/%.c $(BUILD_DIRS)
 $(BUILD_DIRS):
 	mkdir -p $(BUILD_DIRS)
 
-.PHONY clean:
+test:
+	
+
 clean:
 	rm -rf $(TARGET) $(OBJ)/**
